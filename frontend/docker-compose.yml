@@ -7,4 +7,10 @@ services:
     container_name: stockbit-frontend
     restart: always
     ports:
-      - 3034:80
+      - 3036:80
+    networks:
+      - stockbit_network
+
+networks:
+  stockbit_network:
+    external: true

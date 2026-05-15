@@ -33,5 +33,6 @@ jobs:
 
       - name: Deploy with Docker Compose
         run: |
+          docker network create stockbit_network || true
           docker compose down || true
           docker compose up -d --build
