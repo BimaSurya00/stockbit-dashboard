@@ -1,0 +1,37 @@
+name: Deploy Stockbit Backend Production
+
+on:
+  push:
+    branches: ['main']
+    paths:
+      - 'backend/**'
+      - '!backend/note.md'
+      - '!backend/hardcode-daftar-saham.md'
+
+jobs:
+  deploy:
+    runs-on: [stockbit-runner]
+    environment:
+      name: production
+
+    defaults:
+      run:
+        working-directory: backend
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Create .env file
+        run: |
+          cat <<EOF > .env
+          PORT=${{ vars.BACKEND_PORT || '3001' }}
+          MONGODB_URI=${{ secrets.BACKEND_MONGODB_URI }}
+          STOCKBIT_TOKEN=${{ secrets.BACKEND_STOCKBIT_TOKEN }}
+          USER_AGENT=${{ vars.BACKEND_USER_AGENT }}
+          EOF
+
+      - name: Deploy with Docker Compose
+        run: |
+          docker compose down || true
+          docker compose up -d --build

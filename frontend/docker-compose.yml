@@ -1,0 +1,10 @@
+services:
+  stockbit-frontend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: stockbit-frontend
+    container_name: stockbit-frontend
+    restart: always
+    ports:
+      - 3034:80

@@ -1,0 +1,17 @@
+services:
+  stockbit-backend:
+    container_name: stockbit-backend
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - '${PORT:-3001}:3001'
+    env_file:
+      - .env
+    restart: always
+    networks:
+      - stockbit_network
+
+networks:
+  stockbit_network:
+    driver: bridge

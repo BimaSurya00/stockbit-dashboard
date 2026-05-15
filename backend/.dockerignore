@@ -1,0 +1,8 @@
+node_modules
+.env
+*.log
+.git
+.gitignore
+note.md
+hardcode-daftar-saham.md
+workers/fetch.log

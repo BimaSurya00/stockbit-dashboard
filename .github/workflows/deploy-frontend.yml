@@ -1,0 +1,27 @@
+name: Deploy Stockbit Frontend Production
+
+on:
+  push:
+    branches: ['main']
+    paths:
+      - 'frontend/**'
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    runs-on: [stockbit-runner]
+    environment:
+      name: production
+
+    defaults:
+      run:
+        working-directory: frontend
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Deploy with Docker Compose
+        run: |
+          docker compose down || true
+          docker compose up -d --build
