@@ -6,14 +6,16 @@ services:
       dockerfile: Dockerfile
     ports:
       - '3028:3001'
-    extra_hosts:
-      - "host.docker.internal:host-gateway"
     env_file:
       - .env
     restart: always
     networks:
       - stockbit_network
+      - siwa_net
 
 networks:
   stockbit_network:
     driver: bridge
+  siwa_net:
+    external: true
+    name: whatsmeow-api_siwa_net
