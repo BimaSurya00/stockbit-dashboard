@@ -7,6 +7,7 @@ on:
       - 'backend/**'
       - '!backend/note.md'
       - '!backend/hardcode-daftar-saham.md'
+  workflow_dispatch:
 
 jobs:
   deploy:
