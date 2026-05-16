@@ -16,6 +16,9 @@ const loading = ref(false)
 const error = ref('')
 const result = ref(null)
 const activeTab = ref('dashboard')
+const tokenInput = ref('')
+const tokenUpdating = ref(false)
+const tokenMessage = ref('')
 const selectedSymbol = ref('')
 const showRaw = ref(false)
 const sidebarOpen = ref(false)
@@ -134,6 +137,21 @@ async function checkToken() {
     error.value = err.response?.data?.error || err.message
   } finally {
     loading.value = false
+  }
+}
+
+async function updateToken() {
+  tokenUpdating.value = true
+  tokenMessage.value = ''
+  try {
+    const res = await axios.post(`${API_BASE}/api/update-token`, { token: tokenInput.value.trim() })
+    tokenMessage.value = `Token updated! Expires: ${new Date(res.data.tokenInfo.expiryDate).toLocaleString()}`
+    tokenInput.value = ''
+    checkToken()
+  } catch (err) {
+    tokenMessage.value = 'Error: ' + (err.response?.data?.error || err.message)
+  } finally {
+    tokenUpdating.value = false
   }
 }
 
@@ -308,6 +326,30 @@ function toggleSidebar() {
           <div class="page-card">
             <div class="page-card-header">
               <div>
+                <h2 class="page-title">Update Bearer Token</h2>
+                <p class="page-subtitle">Masukkan token JWT baru dari Stockbit (dapat dari browser Network tab setelah login)</p>
+              </div>
+            </div>
+            <div class="token-form">
+              <input
+                v-model="tokenInput"
+                type="text"
+                placeholder="Paste Bearer token here..."
+                class="token-input"
+                :disabled="tokenUpdating"
+              />
+              <button @click="updateToken" :disabled="tokenUpdating || !tokenInput.trim()" class="btn-primary">
+                {{ tokenUpdating ? 'Updating...' : 'Update Token' }}
+              </button>
+            </div>
+            <div v-if="tokenMessage" class="token-msg" :class="{ success: tokenMessage.startsWith('Token updated'), error: tokenMessage.startsWith('Error') }">
+              {{ tokenMessage }}
+            </div>
+          </div>
+
+          <div class="page-card">
+            <div class="page-card-header">
+              <div>
                 <h2 class="page-title">Status Token</h2>
                 <p class="page-subtitle">Cek expire date dan validitas token JWT</p>
               </div>
@@ -315,10 +357,23 @@ function toggleSidebar() {
                 {{ loading ? 'Loading...' : 'Cek Token' }}
               </button>
             </div>
-          </div>
-          <div v-if="result" class="page-card">
-            <div class="raw-data">
-              <pre>{{ JSON.stringify(result, null, 2) }}</pre>
+            <div v-if="result" class="token-status-card">
+              <div class="token-status-row">
+                <span class="ts-label">Status</span>
+                <span class="ts-badge" :class="result.valid ? 'valid' : 'expired'">{{ result.valid ? 'VALID' : 'EXPIRED' }}</span>
+              </div>
+              <div class="token-status-row" v-if="result.username">
+                <span class="ts-label">Username</span>
+                <span class="ts-value">{{ result.username }}</span>
+              </div>
+              <div class="token-status-row" v-if="result.expiryDate">
+                <span class="ts-label">Expiry</span>
+                <span class="ts-value">{{ new Date(result.expiryDate).toLocaleString() }}</span>
+              </div>
+              <div class="token-status-row" v-if="result.message">
+                <span class="ts-label">Info</span>
+                <span class="ts-value">{{ result.message }}</span>
+              </div>
             </div>
           </div>
         </div>
@@ -844,6 +899,106 @@ function toggleSidebar() {
   font-size: 13px;
   line-height: 1.5;
   margin: 0;
+}
+
+/* Token Form */
+.token-form {
+  display: flex;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.token-input {
+  flex: 1;
+  height: 44px;
+  padding: 0 16px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  font-family: 'SF Mono', 'Fira Code', monospace;
+  font-size: 13px;
+  color: var(--text);
+  background: var(--bg);
+  outline: none;
+  transition: var(--transition);
+}
+
+.token-input:focus {
+  border-color: var(--primary);
+  box-shadow: 0 0 0 3px rgba(32, 91, 252, 0.1);
+  background: var(--surface);
+}
+
+.token-input:disabled {
+  opacity: 0.5;
+}
+
+.token-msg {
+  padding: 10px 14px;
+  border-radius: var(--radius-sm);
+  font-size: 13px;
+  font-weight: 500;
+}
+
+.token-msg.success {
+  background: rgba(33, 191, 115, 0.08);
+  color: #16804a;
+  border: 1px solid rgba(33, 191, 115, 0.2);
+}
+
+.token-msg.error {
+  background: rgba(239, 58, 58, 0.08);
+  color: var(--danger);
+  border: 1px solid rgba(239, 58, 58, 0.2);
+}
+
+.token-status-card {
+  margin-top: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.token-status-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 0;
+  border-bottom: 1px solid var(--border);
+}
+
+.token-status-row:last-child {
+  border-bottom: none;
+}
+
+.ts-label {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-soft);
+}
+
+.ts-value {
+  font-size: 13px;
+  color: var(--text);
+  font-family: 'SF Mono', 'Fira Code', monospace;
+  font-weight: 500;
+}
+
+.ts-badge {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+  padding: 4px 10px;
+  border-radius: 100px;
+}
+
+.ts-badge.valid {
+  background: rgba(33, 191, 115, 0.1);
+  color: #16804a;
+}
+
+.ts-badge.expired {
+  background: rgba(239, 58, 58, 0.1);
+  color: var(--danger);
 }
 
 /* Error Card */
