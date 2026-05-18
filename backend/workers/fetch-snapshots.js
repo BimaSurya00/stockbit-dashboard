@@ -100,6 +100,8 @@ async function fetchMovers(type) {
   }
 }
 
+const LOOP_INTERVAL = 5 * 60 * 1000; // 5 menit
+
 async function main() {
   const ts = new Date().toLocaleString('id-ID', { timeZone: 'Asia/Jakarta' });
   console.log(`[${ts}] Fetching snapshots...`);
@@ -119,10 +121,15 @@ async function main() {
   }
 
   await mongoose.disconnect();
-  console.log('  Done.\n');
+  console.log(`  Done. Next run in ${LOOP_INTERVAL / 60000} minutes.\n`);
 }
 
-main().catch(err => {
+async function start() {
+  await main();
+  setTimeout(start, LOOP_INTERVAL);
+}
+
+start().catch(err => {
   console.error('[FATAL]', err.message);
   process.exit(1);
 });

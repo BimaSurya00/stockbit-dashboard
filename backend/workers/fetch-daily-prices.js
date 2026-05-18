@@ -178,7 +178,16 @@ async function main() {
   await mongoose.disconnect();
 }
 
-main().catch(err => {
+const LOOP_INTERVAL = 24 * 60 * 60 * 1000; // 24 jam
+
+async function start() {
+  await main();
+  const next = new Date(Date.now() + LOOP_INTERVAL).toLocaleString('id-ID', { timeZone: 'Asia/Jakarta' });
+  console.log(`Next price fetch: ${next}\n`);
+  setTimeout(start, LOOP_INTERVAL);
+}
+
+start().catch(err => {
   console.error('[FATAL]', err.message);
   process.exit(1);
 });

@@ -13,6 +13,36 @@ services:
       - stockbit_network
       - siwa_net
 
+  stockbit-snapshot-worker:
+    container_name: stockbit-snapshot-worker
+    build:
+      context: .
+      dockerfile: Dockerfile
+    command: node workers/fetch-snapshots.js
+    env_file:
+      - .env
+    restart: always
+    depends_on:
+      - stockbit-backend
+    networks:
+      - stockbit_network
+      - siwa_net
+
+  stockbit-price-worker:
+    container_name: stockbit-price-worker
+    build:
+      context: .
+      dockerfile: Dockerfile
+    command: node workers/fetch-daily-prices.js
+    env_file:
+      - .env
+    restart: always
+    depends_on:
+      - stockbit-backend
+    networks:
+      - stockbit_network
+      - siwa_net
+
 networks:
   stockbit_network:
     driver: bridge
