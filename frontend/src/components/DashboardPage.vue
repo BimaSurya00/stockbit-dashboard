@@ -353,8 +353,21 @@ function toggleSidebar() {
               <div class="token-status-row">
                 <span class="ts-label">Status</span>
                 <span class="ts-badge" :class="result.valid ? 'valid' : 'expired'">{{ result.valid ? 'VALID' : 'EXPIRED' }}</span>
+              </div>
+              <div class="token-status-row" v-if="result.username">
+                <span class="ts-label">Username</span>
+                <span class="ts-value">{{ result.username }}</span>
+              </div>
+              <div class="token-status-row" v-if="result.expiryDate">
+                <span class="ts-label">Expiry</span>
+                <span class="ts-value">{{ new Date(result.expiryDate).toLocaleString() }}</span>
+              </div>
+              <div class="token-status-row" v-if="result.message">
+                <span class="ts-label">Info</span>
+                <span class="ts-value">{{ result.message }}</span>
+              </div>
+            </div>
           </div>
-
         </div>
 
         <div v-if="activeTab === 'token' && !isAdmin()" class="page-card">
