@@ -39,7 +39,6 @@ onMounted(async () => {
   if (tab) {
     activeTab.value = tab
     if (tab === 'trending') fetchTrending()
-    else if (tab === 'profile') fetchProfile()
     else if (tab === 'token') checkToken()
   }
 })
@@ -69,7 +68,6 @@ const menuSections = [
   {
     label: 'TOOLS',
     items: [
-      { key: 'profile', label: 'Profile Test', icon: 'profile' },
       { key: 'token', label: 'Token Status', icon: 'token' },
     ]
   },
@@ -102,7 +100,6 @@ const tabLabels = {
   detail: 'Detail Saham',
   emiten: 'Daftar Emiten',
   broker: 'Top Broker',
-  profile: 'Profile Test',
   token: 'Token Status',
   users: 'Manage Users'
 }
@@ -135,21 +132,6 @@ async function fetchTrending() {
       params: { _t: Date.now() },
       headers: { 'Cache-Control': 'no-cache', 'Pragma': 'no-cache' }
     })
-    result.value = res.data
-  } catch (err) {
-    error.value = err.response?.data?.error || err.message
-  } finally {
-    loading.value = false
-  }
-}
-
-async function fetchProfile() {
-  loading.value = true
-  error.value = ''
-  result.value = null
-  showRaw.value = false
-  try {
-    const res = await axios.get(`${API_BASE}/api/profile/itgawebecik`)
     result.value = res.data
   } catch (err) {
     error.value = err.response?.data?.error || err.message
@@ -220,8 +202,6 @@ function navigateTo(tab) {
   router.push({ query: { tab } })
   if (tab === 'trending') {
     fetchTrending()
-  } else if (tab === 'profile') {
-    fetchProfile()
   } else if (tab === 'token') {
     checkToken()
   }
@@ -348,26 +328,6 @@ function toggleSidebar() {
         <!-- Top Broker -->
         <div v-if="activeTab === 'broker'">
           <BrokerTop />
-        </div>
-
-        <!-- Profile Test -->
-        <div v-if="activeTab === 'profile'">
-          <div class="page-card">
-            <div class="page-card-header">
-              <div>
-                <h2 class="page-title">Test Autentikasi</h2>
-                <p class="page-subtitle">Cek apakah token Stockbit masih valid</p>
-              </div>
-              <button @click="fetchProfile" :disabled="loading" class="btn-primary">
-                {{ loading ? 'Loading...' : 'Test Profile API' }}
-              </button>
-            </div>
-          </div>
-          <div v-if="result" class="page-card">
-            <div class="raw-data">
-              <pre>{{ JSON.stringify(result, null, 2) }}</pre>
-            </div>
-          </div>
         </div>
 
         <!-- Token Status -->

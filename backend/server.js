@@ -655,20 +655,6 @@ app.get('/api/market-movers', async (req, res) => {
   }
 });
 
-// --- Proxy endpoint: user profile ---
-app.get('/api/profile/:username', checkTokenMiddleware, async (req, res) => {
-  try {
-    const { username } = req.params;
-    const client = getStockbitClient();
-    const response = await client.get(`/user/profile/${username}`);
-    res.json(response.data);
-  } catch (error) {
-    if (error.response?.status === 401) {
-      return res.status(401).json({ error: 'Unauthorized' });
-    }
-    res.status(500).json({ error: 'Gagal mengambil profile' });
-  }
-});
 
 // --- Proxy endpoint: Top Broker ---
 app.get('/api/broker/top', checkTokenMiddleware, async (req, res) => {
