@@ -9,6 +9,7 @@ import EmitenList from './EmitenList.vue'
 import BrokerTop from './BrokerTop.vue'
 import StockDetail from './StockDetail.vue'
 import StockbitDashboard from './StockbitDashboard.vue'
+import UserManagement from './UserManagement.vue'
 
 const router = useRouter()
 
@@ -71,6 +72,12 @@ const menuSections = [
       { key: 'profile', label: 'Profile Test', icon: 'profile' },
       { key: 'token', label: 'Token Status', icon: 'token' },
     ]
+  },
+  {
+    label: 'ADMIN',
+    items: [
+      { key: 'users', label: 'Manage Users', icon: 'profile' },
+    ]
   }
 ]
 
@@ -96,7 +103,8 @@ const tabLabels = {
   emiten: 'Daftar Emiten',
   broker: 'Top Broker',
   profile: 'Profile Test',
-  token: 'Token Status'
+  token: 'Token Status',
+  users: 'Manage Users'
 }
 
 async function fetchChart() {
@@ -243,7 +251,8 @@ function toggleSidebar() {
       </div>
 
       <nav class="sidebar-nav">
-        <div v-for="(section, idx) in menuSections" :key="idx" class="nav-section">
+        <template v-for="(section, idx) in menuSections" :key="idx">
+          <div v-if="section.label !== 'ADMIN' || isAdmin()" class="nav-section">
           <span class="nav-label">{{ section.label }}</span>
           <div class="nav-items">
             <button
@@ -259,6 +268,7 @@ function toggleSidebar() {
             </button>
           </div>
         </div>
+        </template>
       </nav>
 
       <div class="sidebar-footer">
@@ -462,6 +472,11 @@ function toggleSidebar() {
               <p class="page-subtitle">Hanya admin yang dapat mengelola token Stockbit</p>
             </div>
           </div>
+        </div>
+
+        <!-- Manage Users (admin only) -->
+        <div v-if="activeTab === 'users'">
+          <UserManagement />
         </div>
 
         <!-- Error -->
