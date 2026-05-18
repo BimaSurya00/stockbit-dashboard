@@ -309,10 +309,6 @@ function toggleSidebar() {
           </div>
         </div>
         <div class="topbar-right">
-          <div class="search-box">
-            <svg class="search-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" v-html="icons.search"></svg>
-            <input type="text" placeholder="Search stocks, brokers..." />
-          </div>
           <button class="icon-btn">
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" v-html="icons.bell"></svg>
             <span class="notification-dot"></span>

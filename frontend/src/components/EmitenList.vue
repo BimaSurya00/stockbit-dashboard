@@ -210,8 +210,8 @@ onMounted(() => { fetchEmitens() })
 .btn-refresh:disabled { opacity: 0.5; cursor: not-allowed; }
 
 /* Controls */
-.controls-bar { display: flex; gap: 12px; margin-bottom: 20px; flex-wrap: wrap; }
-.search-wrap { position: relative; flex: 1; min-width: 240px; }
+.controls-bar { display: flex; gap: 16px; margin-bottom: 24px; flex-wrap: wrap; align-items: center; }
+.search-wrap { position: relative; flex: 1; min-width: 260px; }
 .search-icon-svg { position: absolute; left: 14px; top: 50%; transform: translateY(-50%); color: var(--text3); pointer-events: none; }
 .search-inp {
   width: 100%; height: 44px; padding: 0 16px 0 42px;
