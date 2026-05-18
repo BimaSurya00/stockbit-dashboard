@@ -24,9 +24,6 @@ const activeTab = ref(router.currentRoute.value.query.tab || 'dashboard')
 const tokenInput = ref('')
 const tokenUpdating = ref(false)
 const tokenMessage = ref('')
-const regForm = ref({ username: '', password: '', role: 'user' })
-const regLoading = ref(false)
-const regMessage = ref('')
 const selectedSymbol = ref('')
 const showRaw = ref(false)
 const sidebarOpen = ref(false)
@@ -167,20 +164,6 @@ async function updateToken() {
     tokenMessage.value = 'Error: ' + (err.response?.data?.error || err.message)
   } finally {
     tokenUpdating.value = false
-  }
-}
-
-async function registerUser() {
-  regLoading.value = true
-  regMessage.value = ''
-  try {
-    await axios.post(`${API_BASE}/api/auth/register`, regForm.value)
-    regMessage.value = `User "${regForm.value.username}" created successfully`
-    regForm.value = { username: '', password: '', role: 'user' }
-  } catch (err) {
-    regMessage.value = 'Error: ' + (err.response?.data?.error || err.message)
-  } finally {
-    regLoading.value = false
   }
 }
 
@@ -370,55 +353,8 @@ function toggleSidebar() {
               <div class="token-status-row">
                 <span class="ts-label">Status</span>
                 <span class="ts-badge" :class="result.valid ? 'valid' : 'expired'">{{ result.valid ? 'VALID' : 'EXPIRED' }}</span>
-              </div>
-              <div class="token-status-row" v-if="result.username">
-                <span class="ts-label">Username</span>
-                <span class="ts-value">{{ result.username }}</span>
-              </div>
-              <div class="token-status-row" v-if="result.expiryDate">
-                <span class="ts-label">Expiry</span>
-                <span class="ts-value">{{ new Date(result.expiryDate).toLocaleString() }}</span>
-              </div>
-              <div class="token-status-row" v-if="result.message">
-                <span class="ts-label">Info</span>
-                <span class="ts-value">{{ result.message }}</span>
-              </div>
-            </div>
           </div>
 
-          <div class="page-card">
-            <div class="page-card-header">
-              <div>
-                <h2 class="page-title">Register User</h2>
-                <p class="page-subtitle">Buat user baru untuk akses dashboard</p>
-              </div>
-            </div>
-            <div class="reg-form">
-              <div class="field-row">
-                <div class="field-col">
-                  <label>Username</label>
-                  <input v-model="regForm.username" type="text" placeholder="username" class="reg-input" />
-                </div>
-                <div class="field-col">
-                  <label>Password</label>
-                  <input v-model="regForm.password" type="password" placeholder="password" class="reg-input" />
-                </div>
-                <div class="field-col field-col-sm">
-                  <label>Role</label>
-                  <select v-model="regForm.role" class="reg-input">
-                    <option value="user">User</option>
-                    <option value="admin">Admin</option>
-                  </select>
-                </div>
-              </div>
-              <button @click="registerUser" :disabled="regLoading" class="btn-primary">
-                {{ regLoading ? 'Creating...' : 'Create User' }}
-              </button>
-            </div>
-            <div v-if="regMessage" class="token-msg" :class="{ success: regMessage.includes('successfully'), error: regMessage.startsWith('Error') }">
-              {{ regMessage }}
-            </div>
-          </div>
         </div>
 
         <div v-if="activeTab === 'token' && !isAdmin()" class="page-card">

@@ -1,5 +1,5 @@
 <script setup>
-import { ref, onMounted } from 'vue'
+import { ref, onMounted, reactive } from 'vue'
 import axios from 'axios'
 import { isAdmin } from '../stores/auth.js'
 import { useRouter } from 'vue-router'
@@ -8,6 +8,8 @@ const router = useRouter()
 const users = ref([])
 const loading = ref(false)
 const message = ref('')
+const regForm = reactive({ username: '', password: '', role: 'user' })
+const regLoading = ref(false)
 
 onMounted(() => {
   if (!isAdmin()) {
@@ -60,6 +62,23 @@ async function deleteUser(user) {
     message.value = 'Error: ' + (err.response?.data?.error || err.message)
   }
 }
+
+async function registerUser() {
+  regLoading.value = true
+  message.value = ''
+  try {
+    await axios.post('/api/auth/register', regForm.value)
+    message.value = `User "${regForm.value.username}" created`
+    regForm.username = ''
+    regForm.password = ''
+    regForm.role = 'user'
+    fetchUsers()
+  } catch (err) {
+    message.value = 'Error: ' + (err.response?.data?.error || err.message)
+  } finally {
+    regLoading.value = false
+  }
+}
 </script>
 
 <template>
@@ -74,6 +93,20 @@ async function deleteUser(user) {
 
       <div v-if="message" class="token-msg" :class="{ success: !message.startsWith('Error'), error: message.startsWith('Error') }">
         {{ message }}
+      </div>
+
+      <div class="reg-form">
+        <div class="reg-row">
+          <input v-model="regForm.username" type="text" placeholder="Username" class="reg-inp" />
+          <input v-model="regForm.password" type="password" placeholder="Password" class="reg-inp" />
+          <select v-model="regForm.role" class="reg-inp reg-sel">
+            <option value="user">User</option>
+            <option value="admin">Admin</option>
+          </select>
+          <button @click="registerUser" :disabled="regLoading || !regForm.username || !regForm.password" class="btn-reg">
+            {{ regLoading ? 'Creating...' : '+ Add User' }}
+          </button>
+        </div>
       </div>
 
       <table v-if="users.length" class="user-table">
@@ -264,4 +297,23 @@ async function deleteUser(user) {
   color: #EF3A3A;
   border: 1px solid rgba(239,58,58,0.2);
 }
+
+.reg-form { margin-bottom: 12px; }
+.reg-row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.reg-inp {
+  height: 38px; padding: 0 12px;
+  border: 1px solid rgba(0,0,0,0.1); border-radius: 10px;
+  font-family: inherit; font-size: 13px; color: #1E1E1E;
+  background: #F9FAFB; outline: none; transition: all 0.2s;
+}
+.reg-inp:focus { border-color: #205BFC; box-shadow: 0 0 0 3px rgba(32,91,252,0.1); background: #fff; }
+.reg-sel { width: 100px; cursor: pointer; }
+.btn-reg {
+  height: 38px; padding: 0 16px;
+  background: #205BFC; color: white; border: none; border-radius: 10px;
+  font-family: inherit; font-size: 13px; font-weight: 600; cursor: pointer;
+  transition: all 0.2s; white-space: nowrap;
+}
+.btn-reg:hover:not(:disabled) { background: #1a4fd4; }
+.btn-reg:disabled { opacity: 0.5; cursor: not-allowed; }
 </style>
