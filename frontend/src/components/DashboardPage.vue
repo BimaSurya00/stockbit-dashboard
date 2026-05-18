@@ -12,17 +12,6 @@ import StockbitDashboard from './StockbitDashboard.vue'
 
 const router = useRouter()
 
-onMounted(() => {
-  if (!isAuthenticated()) {
-    router.push('/login')
-  }
-})
-
-function logout() {
-  clearSession()
-  router.push('/login')
-}
-
 const API_BASE = ''
 
 const symbol = ref('GOTO')
@@ -31,6 +20,15 @@ const loading = ref(false)
 const error = ref('')
 const result = ref(null)
 const activeTab = ref(router.currentRoute.value.query.tab || 'dashboard')
+const tokenInput = ref('')
+const tokenUpdating = ref(false)
+const tokenMessage = ref('')
+const regForm = ref({ username: '', password: '', role: 'user' })
+const regLoading = ref(false)
+const regMessage = ref('')
+const selectedSymbol = ref('')
+const showRaw = ref(false)
+const sidebarOpen = ref(false)
 
 onMounted(async () => {
   if (!isAuthenticated()) {
@@ -44,6 +42,62 @@ onMounted(async () => {
     else if (tab === 'token') checkToken()
   }
 })
+
+function logout() {
+  clearSession()
+  router.push('/login')
+}
+
+// Menu structure
+const menuSections = [
+  {
+    label: 'MAIN',
+    items: [
+      { key: 'dashboard', label: 'Dashboard', icon: 'dashboard' },
+      { key: 'trending', label: 'Trending', icon: 'trending' },
+    ]
+  },
+  {
+    label: 'MARKET',
+    items: [
+      { key: 'detail', label: 'Detail Saham', icon: 'chart' },
+      { key: 'emiten', label: 'Daftar Emiten', icon: 'list' },
+      { key: 'broker', label: 'Top Broker', icon: 'broker' },
+    ]
+  },
+  {
+    label: 'TOOLS',
+    items: [
+      { key: 'profile', label: 'Profile Test', icon: 'profile' },
+      { key: 'token', label: 'Token Status', icon: 'token' },
+    ]
+  }
+]
+
+// SVG icons
+const icons = {
+  dashboard: '<rect x="3" y="3" width="7" height="7" rx="2"/><rect x="14" y="3" width="7" height="7" rx="2"/><rect x="14" y="14" width="7" height="7" rx="2"/><rect x="3" y="14" width="7" height="7" rx="2"/>',
+  trending: '<polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/><polyline points="17 6 23 6 23 12"/>',
+  chart: '<line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/>',
+  list: '<line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/>',
+  broker: '<path d="M3 21h18"/><path d="M5 21V7l8-4 8 4v14"/><path d="M9 21v-6h6v6"/>',
+  profile: '<path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/>',
+  token: '<path d="M21 2l-2 2m-7.61 7.61a5.5 5.5 0 1 1-7.778 7.778 5.5 5.5 0 0 1 7.777-7.777zm0 0L15.5 7.5m0 0l3 3L22 7l-3-3m-3.5 3.5L19 4"/>',
+  search: '<circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>',
+  bell: '<path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/>',
+  settings: '<circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/>',
+}
+
+// Tab labels for breadcrumb
+const tabLabels = {
+  dashboard: 'Dashboard',
+  trending: 'Trending',
+  detail: 'Detail Saham',
+  emiten: 'Daftar Emiten',
+  broker: 'Top Broker',
+  profile: 'Profile Test',
+  token: 'Token Status'
+}
 
 async function fetchChart() {
   loading.value = true
