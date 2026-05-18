@@ -46,7 +46,7 @@ services:
 networks:
   stockbit_network:
     name: stockbit_network
-    driver: bridge
+    external: true
   siwa_net:
     external: true
     name: whatsmeow-api_siwa_net
