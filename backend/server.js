@@ -12,7 +12,11 @@ const connectDB = require('./db');
 const Emiten = require('./models/Emiten');
 const ChartPrice = require('./models/ChartPrice');
 const Snapshot = require('./models/Snapshot');
+const User = require('./models/User');
+const Config = require('./models/Config');
 const { seedEmiten } = require('./seeds/emitenSeed');
+const { seedAdmin } = require('./seeds/adminSeed');
+const { generateToken, authMiddleware, adminMiddleware, JWT_SECRET } = require('./middleware/auth');
 
 // Connect to MongoDB
 connectDB();
@@ -77,7 +81,44 @@ function getTokenInfo(token) {
 }
 
 // --- Axios client builder ---
-let currentToken = process.env.STOCKBIT_TOKEN || null;
+// --- Token management (centralized in MongoDB, cached in-memory) ---
+let currentToken = null;
+let tokenCacheTs = 0;
+const TOKEN_CACHE_MS = 60 * 1000; // 60 detik
+
+async function loadTokenFromDB() {
+  try {
+    const config = await Config.findOne({ key: 'stockbit_token' });
+    if (config && config.value) {
+      currentToken = config.value;
+      tokenCacheTs = Date.now();
+      console.log(`[TOKEN] Loaded from database`);
+      return;
+    }
+  } catch (err) {
+    console.warn('[TOKEN] Cannot read from DB, fallback to env');
+  }
+  if (process.env.STOCKBIT_TOKEN) {
+    currentToken = process.env.STOCKBIT_TOKEN;
+    tokenCacheTs = Date.now();
+  }
+}
+
+async function getCurrentToken() {
+  if (currentToken && (Date.now() - tokenCacheTs < TOKEN_CACHE_MS)) {
+    return currentToken;
+  }
+  try {
+    const config = await Config.findOne({ key: 'stockbit_token' });
+    if (config && config.value) {
+      currentToken = config.value;
+      tokenCacheTs = Date.now();
+      return currentToken;
+    }
+  } catch (err) {}
+  if (currentToken) return currentToken;
+  return null;
+}
 
 function getStockbitClient() {
   const headers = {
@@ -103,33 +144,96 @@ function getStockbitClient() {
   });
 }
 
-// --- Middleware: cek token ---
+// --- Middleware: cek stockbit token ---
 function checkTokenMiddleware(req, res, next) {
+  if (!currentToken) {
+    return res.status(401).json({
+      error: 'Stockbit token not configured',
+      hint: 'PUT /api/admin/token to update'
+    });
+  }
   const info = getTokenInfo(currentToken);
   if (!info.valid) {
     return res.status(401).json({
       error: 'Token tidak valid atau sudah expired',
       tokenInfo: info,
-      hint: 'POST /api/update-token untuk update token baru tanpa restart server'
+      hint: 'Admin: PUT /api/admin/token untuk update token'
     });
   }
   next();
 }
 
-// --- Endpoint: update token ---
-app.post('/api/update-token', (req, res) => {
+// === AUTH ROUTES ===
+
+app.post('/api/auth/login', async (req, res) => {
+  try {
+    const { username, password } = req.body;
+    if (!username || !password) {
+      return res.status(400).json({ error: 'Username and password required' });
+    }
+    const user = await User.findOne({ username: username.toLowerCase() });
+    if (!user || !user.isActive) {
+      return res.status(401).json({ error: 'Invalid credentials' });
+    }
+    const match = await user.comparePassword(password);
+    if (!match) {
+      return res.status(401).json({ error: 'Invalid credentials' });
+    }
+    const token = generateToken(user);
+    res.json({ token, user: { id: user._id, username: user.username, role: user.role } });
+  } catch (err) {
+    res.status(500).json({ error: 'Login failed', detail: err.message });
+  }
+});
+
+app.post('/api/auth/register', authMiddleware, adminMiddleware, async (req, res) => {
+  try {
+    const { username, password, role } = req.body;
+    if (!username || !password) {
+      return res.status(400).json({ error: 'Username and password required' });
+    }
+    const existing = await User.findOne({ username: username.toLowerCase() });
+    if (existing) {
+      return res.status(409).json({ error: 'Username already exists' });
+    }
+    const user = await User.create({
+      username: username.toLowerCase(),
+      password,
+      role: role || 'user'
+    });
+    res.status(201).json({ message: 'User created', user: { id: user._id, username: user.username, role: user.role } });
+  } catch (err) {
+    res.status(500).json({ error: 'Registration failed', detail: err.message });
+  }
+});
+
+app.get('/api/auth/me', authMiddleware, (req, res) => {
+  res.json({ user: req.user });
+});
+
+// === STOCKBIT TOKEN MANAGEMENT (admin only) ===
+
+app.put('/api/admin/token', authMiddleware, adminMiddleware, async (req, res) => {
   const { token } = req.body;
   if (!token || typeof token !== 'string') {
     return res.status(400).json({ error: 'Body harus ada field "token" (string)' });
   }
-
-  currentToken = token;
-  const info = getTokenInfo(currentToken);
-  console.log(`[TOKEN UPDATE] ${info.message}`);
-  res.json({ success: true, tokenInfo: info });
+  try {
+    await Config.findOneAndUpdate(
+      { key: 'stockbit_token' },
+      { key: 'stockbit_token', value: token, description: 'Stockbit API Bearer token' },
+      { upsert: true, new: true }
+    );
+    currentToken = token;
+    tokenCacheTs = Date.now();
+    const info = getTokenInfo(currentToken);
+    console.log(`[TOKEN UPDATE] ${info.message}`);
+    res.json({ success: true, tokenInfo: info });
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to save token', detail: err.message });
+  }
 });
 
-// --- Endpoint: cek status token ---
 app.get('/api/token-status', (req, res) => {
   const info = getTokenInfo(currentToken);
   res.json(info);
@@ -645,7 +749,14 @@ app.post('/api/clear-cache', (req, res) => {
   res.json({ success: true, message: 'Cache cleared' });
 });
 
-app.listen(PORT, () => {
-  console.log(`Stockbit Proxy running on http://localhost:${PORT}`);
-  console.log(`[AUTH] ${getTokenInfo(currentToken).message}`);
-});
+async function startup() {
+  await seedAdmin();
+  await loadTokenFromDB();
+
+  app.listen(PORT, () => {
+    console.log(`Stockbit Proxy running on http://localhost:${PORT}`);
+    console.log(`[AUTH] ${getTokenInfo(currentToken).message}`);
+  });
+}
+
+startup();

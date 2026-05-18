@@ -14,21 +14,35 @@ const Snapshot = require('../models/Snapshot');
 const MONGODB_URI = process.env.MONGODB_URI || 'mongodb://localhost:27017/stockbit_dashboard';
 const STOCKBIT_BASE = 'https://exodus.stockbit.com';
 
-const token = process.env.STOCKBIT_TOKEN;
-if (!token) {
-  console.error('[ERROR] STOCKBIT_TOKEN missing');
-  process.exit(1);
+let token = process.env.STOCKBIT_TOKEN || null;
+
+async function loadTokenFromDB() {
+  const Config = require('../models/Config');
+  try {
+    const config = await Config.findOne({ key: 'stockbit_token' });
+    if (config && config.value) {
+      token = config.value;
+      console.log('[TOKEN] Loaded from database');
+      return;
+    }
+  } catch (err) {}
+  if (process.env.STOCKBIT_TOKEN) {
+    token = process.env.STOCKBIT_TOKEN;
+  }
 }
 
-const client = axios.create({
-  baseURL: STOCKBIT_BASE,
-  headers: {
-    'Authorization': token,
-    'User-Agent': process.env.USER_AGENT || 'StockbitDashboard/1.0',
-    'Accept': 'application/json'
-  },
-  timeout: 15000
-});
+function getClient() {
+  if (!token) throw new Error('No token');
+  return axios.create({
+    baseURL: STOCKBIT_BASE,
+    headers: {
+      'Authorization': token,
+      'User-Agent': process.env.USER_AGENT || 'StockbitDashboard/1.0',
+      'Accept': 'application/json'
+    },
+    timeout: 15000
+  });
+}
 
 const FILTER_BOARDS = [
   'FILTER_STOCKS_TYPE_MAIN_BOARD',
@@ -58,7 +72,7 @@ async function saveSnapshot(type, data) {
 
 async function fetchIHSG() {
   try {
-    const res = await client.get('/company-price-feed/v2/orderbook/companies/IHSG', {
+    const res = await getClient().get('/company-price-feed/v2/orderbook/companies/IHSG', {
       params: { _t: Date.now() }
     });
     await saveSnapshot('ihsg', res.data);
@@ -70,7 +84,7 @@ async function fetchIHSG() {
 
 async function fetchTrending() {
   try {
-    const res = await client.get('/emitten/trending', { params: { _t: Date.now() } });
+    const res = await getClient().get('/emitten/trending', { params: { _t: Date.now() } });
     await saveSnapshot('trending', res.data);
     const count = Array.isArray(res.data) ? res.data.length : (res.data?.data?.length || '?');
     return `✓ ${count} stocks`;
@@ -81,7 +95,7 @@ async function fetchTrending() {
 
 async function fetchMovers(type) {
   try {
-    const res = await client.get('/order-trade/market-mover', {
+    const res = await getClient().get('/order-trade/market-mover', {
       params: {
         mover_type: type,
         filter_stocks: FILTER_BOARDS,
@@ -107,6 +121,12 @@ async function main() {
   console.log(`[${ts}] Fetching snapshots...`);
 
   await mongoose.connect(MONGODB_URI);
+  await loadTokenFromDB();
+
+  if (!token) {
+    console.error('[ERROR] No Stockbit token available');
+    return;
+  }
 
   const results = [];
 

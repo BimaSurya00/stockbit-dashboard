@@ -22,10 +22,21 @@ const DELAY_MS = 300;
 const BATCH_SIZE = 50;
 const BATCH_DELAY_MS = 2000;
 
-let token = process.env.STOCKBIT_TOKEN;
-if (!token) {
-  console.error('[ERROR] STOCKBIT_TOKEN tidak ditemukan di .env');
-  process.exit(1);
+let token = process.env.STOCKBIT_TOKEN || null;
+
+async function loadTokenFromDB() {
+  const Config = require('../models/Config');
+  try {
+    const config = await Config.findOne({ key: 'stockbit_token' });
+    if (config && config.value) {
+      token = config.value;
+      console.log('[TOKEN] Loaded from database');
+      return;
+    }
+  } catch (err) {}
+  if (process.env.STOCKBIT_TOKEN) {
+    token = process.env.STOCKBIT_TOKEN;
+  }
 }
 
 function getClient() {
@@ -117,6 +128,12 @@ async function main() {
   // Connect to MongoDB
   await mongoose.connect(MONGODB_URI);
   console.log('[DB] Connected to MongoDB\n');
+
+  await loadTokenFromDB();
+  if (!token) {
+    console.error('[ERROR] No Stockbit token available');
+    return;
+  }
 
   // Get all active emiten
   const emitens = await Emiten.find({ isActive: true }).lean();
