@@ -45,6 +45,7 @@ services:
 
 networks:
   stockbit_network:
+    name: stockbit_network
     driver: bridge
   siwa_net:
     external: true
