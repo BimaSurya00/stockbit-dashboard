@@ -57,7 +57,6 @@ const menuSections = [
   {
     label: 'MARKET',
     items: [
-      { key: 'detail', label: 'Detail Saham', icon: 'chart' },
       { key: 'emiten', label: 'Daftar Emiten', icon: 'list' },
       { key: 'broker', label: 'Top Broker', icon: 'broker' },
     ]
