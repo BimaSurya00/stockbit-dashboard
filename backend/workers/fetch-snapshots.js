@@ -128,6 +128,11 @@ async function main() {
     return;
   }
 
+  // Auto-reload token from DB every 2 minutes during fetch
+  const tokenReloadInterval = setInterval(async () => {
+    await loadTokenFromDB();
+  }, 2 * 60 * 1000);
+
   const results = [];
 
   results.push(['IHSG     ', await fetchIHSG()]);
@@ -140,6 +145,7 @@ async function main() {
     console.log(`  ${label} ${result}`);
   }
 
+  clearInterval(tokenReloadInterval);
   await mongoose.disconnect();
   console.log(`  Done. Next run in ${LOOP_INTERVAL / 60000} minutes.\n`);
 }

@@ -135,6 +135,14 @@ async function main() {
     return;
   }
 
+  // Auto-reload token from DB every 5 minutes during long fetch
+  const tokenReloadInterval = setInterval(async () => {
+    await loadTokenFromDB();
+    if (token) {
+      console.log('[TOKEN] Auto-reloaded from DB');
+    }
+  }, 5 * 60 * 1000);
+
   // Get all active emiten
   const emitens = await Emiten.find({ isActive: true }).lean();
   console.log(`[INFO] ${emitens.length} emiten to process\n`);
@@ -184,6 +192,8 @@ async function main() {
       await sleep(BATCH_DELAY_MS);
     }
   }
+
+  clearInterval(tokenReloadInterval);
 
   const totalTime = ((Date.now() - startTime) / 1000 / 60).toFixed(1);
   console.log('\n=== DONE ===');
