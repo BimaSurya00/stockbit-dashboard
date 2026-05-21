@@ -251,6 +251,172 @@ app.get('/api/worker-status', async (req, res) => {
   }
 });
 
+// === FINANCIAL REPORTS ===
+const FinancialReport = require('./models/FinancialReport');
+
+app.get('/api/financial-reports', async (req, res) => {
+  try {
+    const {
+      year = '2026',
+      reportType = 'rdf',
+      periode = 'tw1',
+      emitenType = 's',
+      kodeEmiten,
+      pageSize = 12,
+      indexFrom = 1,
+      sortColumn = 'KodeEmiten',
+      sortOrder = 'asc'
+    } = req.query;
+
+    // Build filter for DB query
+    const dbFilter = {
+      reportYear: year,
+      reportType,
+      reportPeriod: periode.toUpperCase()
+    };
+    if (kodeEmiten) {
+      dbFilter.kodeEmiten = kodeEmiten.toUpperCase();
+    }
+
+    // Check cache first
+    const cachedCount = await FinancialReport.countDocuments(dbFilter);
+    
+    // If cache is empty or stale, fetch from IDX
+    if (cachedCount === 0) {
+      try {
+        const idxRes = await axios.get('https://www.idx.co.id/primary/ListedCompany/GetFinancialReport', {
+          params: {
+            indexFrom: parseInt(indexFrom) || 1,
+            pageSize: parseInt(pageSize) || 12,
+            year,
+            reportType,
+            EmitenType: emitenType,
+            periode: periode.toLowerCase(),
+            kodeEmiten: kodeEmiten || '',
+            SortColumn: sortColumn,
+            SortOrder: sortOrder
+          },
+          headers: {
+            'User-Agent': process.env.USER_AGENT || 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36',
+            'Accept': 'application/json'
+          },
+          timeout: 15000
+        });
+
+        const results = idxRes.data?.Results || [];
+        
+        // Save to DB
+        for (const item of results) {
+          await FinancialReport.findOneAndUpdate(
+            {
+              kodeEmiten: item.KodeEmiten,
+              reportYear: item.Report_Year,
+              reportPeriod: item.Report_Period,
+              reportType: reportType
+            },
+            {
+              kodeEmiten: item.KodeEmiten,
+              namaEmiten: item.NamaEmiten,
+              reportYear: item.Report_Year,
+              reportPeriod: item.Report_Period,
+              reportType: reportType,
+              emitenType: emitenType,
+              fileModified: item.File_Modified ? new Date(item.File_Modified) : null,
+              attachments: (item.Attachments || []).map(att => ({
+                fileId: att.File_ID,
+                fileName: att.File_Name,
+                filePath: att.File_Path,
+                fileSize: att.File_Size,
+                fileType: att.File_Type,
+                reportPeriod: att.Report_Period,
+                reportType: att.Report_Type,
+                reportYear: att.Report_Year
+              })),
+              updatedAt: new Date()
+            },
+            { upsert: true, new: true }
+          );
+        }
+      } catch (idxErr) {
+        console.error('[IDX ERROR]', idxErr.message);
+        // Continue with cache if available
+      }
+    }
+
+    // Fetch from DB
+    const dbResults = await FinancialReport.find(dbFilter)
+      .sort({ kodeEmiten: sortOrder === 'asc' ? 1 : -1 })
+      .limit(parseInt(pageSize))
+      .skip(parseInt(indexFrom) - 1);
+
+    const totalCount = await FinancialReport.countDocuments(dbFilter);
+
+    res.json({
+      Search: {
+        ReportType: reportType,
+        KodeEmiten: kodeEmiten || null,
+        Year: year,
+        SortColumn: sortColumn,
+        SortOrder: sortOrder,
+        EmitenType: emitenType,
+        Periode: periode,
+        indexfrom: parseInt(indexFrom),
+        pagesize: parseInt(pageSize)
+      },
+      ResultCount: totalCount,
+      Results: dbResults.map(r => ({
+        KodeEmiten: r.kodeEmiten,
+        NamaEmiten: r.namaEmiten,
+        Report_Year: r.reportYear,
+        Report_Period: r.reportPeriod,
+        File_Modified: r.fileModified,
+        Attachments: r.attachments.map(att => ({
+          File_ID: att.fileId,
+          File_Name: att.fileName,
+          File_Path: att.filePath,
+          File_Size: att.fileSize,
+          File_Type: att.fileType,
+          Report_Period: att.reportPeriod,
+          Report_Type: att.reportType,
+          Report_Year: att.reportYear
+        }))
+      }))
+    });
+
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to fetch financial reports', detail: err.message });
+  }
+});
+
+// Proxy download dari IDX
+app.get('/api/financial-reports/download', async (req, res) => {
+  try {
+    const { path: filePath } = req.query;
+    if (!filePath) {
+      return res.status(400).json({ error: 'File path required' });
+    }
+
+    const idxUrl = `https://www.idx.co.id${filePath}`;
+    
+    const response = await axios.get(idxUrl, {
+      responseType: 'stream',
+      headers: {
+        'User-Agent': process.env.USER_AGENT || 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36'
+      },
+      timeout: 30000
+    });
+
+    // Set headers untuk download
+    const filename = filePath.split('/').pop();
+    res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+    res.setHeader('Content-Type', response.headers['content-type'] || 'application/octet-stream');
+    
+    response.data.pipe(res);
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to download file', detail: err.message });
+  }
+});
+
 // === ADMIN: USER MANAGEMENT ===
 
 app.get('/api/admin/users', authMiddleware, adminMiddleware, async (req, res) => {
