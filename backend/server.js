@@ -284,6 +284,7 @@ app.get('/api/financial-reports', async (req, res) => {
     // If cache is empty or stale, fetch from IDX
     if (cachedCount === 0) {
       try {
+        console.log('[IDX] Fetching from IDX API...');
         const idxRes = await axios.get('https://www.idx.co.id/primary/ListedCompany/GetFinancialReport', {
           params: {
             indexFrom: parseInt(indexFrom) || 1,
@@ -297,10 +298,21 @@ app.get('/api/financial-reports', async (req, res) => {
             SortOrder: sortOrder
           },
           headers: {
-            'User-Agent': process.env.USER_AGENT || 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36',
-            'Accept': 'application/json'
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
+            'Accept': 'application/json, text/plain, */*',
+            'Accept-Language': 'id-ID,id;q=0.9,en-US;q=0.8,en;q=0.7',
+            'Accept-Encoding': 'gzip, deflate, br',
+            'Referer': 'https://www.idx.co.id/id/perusahaan-tercatat/laporan-keuangan-dan-tahunan/',
+            'Origin': 'https://www.idx.co.id',
+            'Sec-Fetch-Dest': 'empty',
+            'Sec-Fetch-Mode': 'cors',
+            'Sec-Fetch-Site': 'same-origin',
+            'Connection': 'keep-alive',
+            'Cache-Control': 'no-cache',
+            'Pragma': 'no-cache'
           },
-          timeout: 15000
+          timeout: 15000,
+          decompress: true
         });
 
         const results = idxRes.data?.Results || [];
@@ -339,6 +351,18 @@ app.get('/api/financial-reports', async (req, res) => {
         }
       } catch (idxErr) {
         console.error('[IDX ERROR]', idxErr.message);
+        if (idxErr.response) {
+          console.error('[IDX ERROR] Status:', idxErr.response.status);
+          console.error('[IDX ERROR] Data:', idxErr.response.data?.substring?.(0, 200) || idxErr.response.data);
+        }
+        // If Cloudflare blocks us, return informative error
+        if (idxErr.response?.data?.includes?.('Cloudflare') || idxErr.response?.data?.includes?.('blocked')) {
+          return res.status(503).json({ 
+            error: 'IDX API blocked by Cloudflare. Using cached data only.',
+            detail: 'Please try again later or the data will be available once cached.',
+            cachedCount: cachedCount
+          });
+        }
         // Continue with cache if available
       }
     }
