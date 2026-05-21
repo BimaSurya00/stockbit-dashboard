@@ -239,6 +239,18 @@ app.get('/api/token-status', (req, res) => {
   res.json(info);
 });
 
+// === WORKER STATUS ===
+const WorkerJob = require('./models/WorkerJob');
+
+app.get('/api/worker-status', async (req, res) => {
+  try {
+    const workers = await WorkerJob.find().sort({ updatedAt: -1 });
+    res.json({ workers });
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to fetch worker status', detail: err.message });
+  }
+});
+
 // === ADMIN: USER MANAGEMENT ===
 
 app.get('/api/admin/users', authMiddleware, adminMiddleware, async (req, res) => {

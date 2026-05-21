@@ -14,6 +14,7 @@ const mongoose = require('mongoose');
 const axios = require('axios');
 const Emiten = require('../models/Emiten');
 const ChartPrice = require('../models/ChartPrice');
+const WorkerJob = require('../models/WorkerJob');
 
 const MONGODB_URI = process.env.MONGODB_URI || 'mongodb://localhost:27017/stockbit_dashboard';
 const STOCKBIT_BASE = 'https://exodus.stockbit.com';
@@ -23,6 +24,30 @@ const BATCH_SIZE = 50;
 const BATCH_DELAY_MS = 2000;
 
 let token = process.env.STOCKBIT_TOKEN || null;
+
+async function updateStatus(status, message, progress = null, errorMessage = null) {
+  try {
+    const update = {
+      worker: 'price',
+      status,
+      message: message || '',
+      updatedAt: new Date()
+    };
+    if (progress) {
+      update.progress = progress;
+    }
+    if (errorMessage) {
+      update.errorMessage = errorMessage;
+    }
+    await WorkerJob.findOneAndUpdate(
+      { worker: 'price' },
+      update,
+      { upsert: true, new: true }
+    );
+  } catch (err) {
+    console.error('[WORKER STATUS] Failed to update:', err.message);
+  }
+}
 
 async function loadTokenFromDB() {
   const Config = require('../models/Config');
@@ -132,6 +157,7 @@ async function main() {
   await loadTokenFromDB();
   if (!token) {
     console.error('[ERROR] No Stockbit token available');
+    await updateStatus('error', 'No token available', null, 'Stockbit token not configured');
     return;
   }
 
@@ -147,6 +173,8 @@ async function main() {
   const emitens = await Emiten.find({ isActive: true }).lean();
   console.log(`[INFO] ${emitens.length} emiten to process\n`);
 
+  await updateStatus('running', `Fetching ${emitens.length} emiten...`, { current: 0, total: emitens.length });
+
   let totalFetched = 0;
   let totalSaved = 0;
   let totalErrors = 0;
@@ -160,6 +188,11 @@ async function main() {
     if (!symbol || symbol === '?') {
       console.log(`${progress} SKIP: no symbol`);
       continue;
+    }
+
+    // Update progress every 10 emiten
+    if (i % 10 === 0) {
+      await updateStatus('running', `Fetching ${symbol} (${i + 1}/${emitens.length})...`, { current: i + 1, total: emitens.length });
     }
 
     for (const tf of TIMEFRAMES) {
@@ -178,6 +211,7 @@ async function main() {
 
         if (err.response?.status === 401) {
           console.error('[FATAL] Token expired! Update STOCKBIT_TOKEN in .env');
+          await updateStatus('error', 'Token expired', { current: i + 1, total: emitens.length }, 'Token expired during fetch');
           process.exit(1);
         }
 
@@ -201,6 +235,21 @@ async function main() {
   console.log(`Fetched: ${totalFetched} requests`);
   console.log(`Prices saved: ${totalSaved}`);
   console.log(`Errors: ${totalErrors}`);
+
+  const nextRun = new Date(Date.now() + LOOP_INTERVAL);
+  await WorkerJob.findOneAndUpdate(
+    { worker: 'price' },
+    {
+      worker: 'price',
+      status: 'idle',
+      message: `Last run: ${totalFetched} requests, ${totalSaved} prices, ${totalErrors} errors`,
+      progress: { current: emitens.length, total: emitens.length },
+      lastRun: new Date(),
+      nextRun: nextRun,
+      updatedAt: new Date()
+    },
+    { upsert: true, new: true }
+  );
 
   await mongoose.disconnect();
 }

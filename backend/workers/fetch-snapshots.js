@@ -10,11 +10,30 @@ require('dotenv').config({ path: require('path').join(__dirname, '..', '.env') }
 const mongoose = require('mongoose');
 const axios = require('axios');
 const Snapshot = require('../models/Snapshot');
+const WorkerJob = require('../models/WorkerJob');
 
 const MONGODB_URI = process.env.MONGODB_URI || 'mongodb://localhost:27017/stockbit_dashboard';
 const STOCKBIT_BASE = 'https://exodus.stockbit.com';
 
 let token = process.env.STOCKBIT_TOKEN || null;
+
+async function updateStatus(status, message, errorMessage = null) {
+  try {
+    await WorkerJob.findOneAndUpdate(
+      { worker: 'snapshot' },
+      {
+        worker: 'snapshot',
+        status,
+        message: message || '',
+        errorMessage: errorMessage || undefined,
+        updatedAt: new Date()
+      },
+      { upsert: true, new: true }
+    );
+  } catch (err) {
+    console.error('[WORKER STATUS] Failed to update:', err.message);
+  }
+}
 
 async function loadTokenFromDB() {
   const Config = require('../models/Config');
@@ -121,10 +140,12 @@ async function main() {
   console.log(`[${ts}] Fetching snapshots...`);
 
   await mongoose.connect(MONGODB_URI);
+  await updateStatus('running', 'Fetching snapshots...');
   await loadTokenFromDB();
 
   if (!token) {
     console.error('[ERROR] No Stockbit token available');
+    await updateStatus('error', 'No token available', 'Stockbit token not configured');
     return;
   }
 
@@ -135,14 +156,33 @@ async function main() {
 
   const results = [];
 
-  results.push(['IHSG     ', await fetchIHSG()]);
-  results.push(['Trending ', await fetchTrending()]);
-  results.push(['Gainer   ', await fetchMovers('MOVER_TYPE_TOP_GAINER')]);
-  results.push(['Loser    ', await fetchMovers('MOVER_TYPE_TOP_LOSER')]);
-  results.push(['Value    ', await fetchMovers('MOVER_TYPE_TOP_VALUE')]);
+  try {
+    results.push(['IHSG     ', await fetchIHSG()]);
+    results.push(['Trending ', await fetchTrending()]);
+    results.push(['Gainer   ', await fetchMovers('MOVER_TYPE_TOP_GAINER')]);
+    results.push(['Loser    ', await fetchMovers('MOVER_TYPE_TOP_LOSER')]);
+    results.push(['Value    ', await fetchMovers('MOVER_TYPE_TOP_VALUE')]);
 
-  for (const [label, result] of results) {
-    console.log(`  ${label} ${result}`);
+    for (const [label, result] of results) {
+      console.log(`  ${label} ${result}`);
+    }
+
+    const nextRun = new Date(Date.now() + LOOP_INTERVAL);
+    await WorkerJob.findOneAndUpdate(
+      { worker: 'snapshot' },
+      {
+        worker: 'snapshot',
+        status: 'idle',
+        message: 'Last run: ' + ts,
+        lastRun: new Date(),
+        nextRun: nextRun,
+        updatedAt: new Date()
+      },
+      { upsert: true, new: true }
+    );
+  } catch (err) {
+    console.error('[FATAL]', err.message);
+    await updateStatus('error', 'Fetch failed', err.message);
   }
 
   clearInterval(tokenReloadInterval);
