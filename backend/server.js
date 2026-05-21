@@ -355,15 +355,7 @@ app.get('/api/financial-reports', async (req, res) => {
           console.error('[IDX ERROR] Status:', idxErr.response.status);
           console.error('[IDX ERROR] Data:', idxErr.response.data?.substring?.(0, 200) || idxErr.response.data);
         }
-        // If Cloudflare blocks us, return informative error
-        if (idxErr.response?.data?.includes?.('Cloudflare') || idxErr.response?.data?.includes?.('blocked')) {
-          return res.status(503).json({ 
-            error: 'IDX API blocked by Cloudflare. Using cached data only.',
-            detail: 'Please try again later or the data will be available once cached.',
-            cachedCount: cachedCount
-          });
-        }
-        // Continue with cache if available
+        // Continue with cache if available - do not return error, just log it
       }
     }
 
