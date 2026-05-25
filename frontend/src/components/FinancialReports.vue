@@ -6,10 +6,8 @@ const API_BASE = ''
 
 const loading = ref(false)
 const error = ref('')
-const idxError = ref(null)
 const reports = ref([])
 const totalCount = ref(0)
-const idxFetchedCount = ref(0)
 
 const filters = reactive({
   reportType: 'rdf',
@@ -25,10 +23,9 @@ const filters = reactive({
 
 const showFilters = ref(true)
 
-async function fetchReports(force = false) {
+async function fetchReports() {
   loading.value = true
   error.value = ''
-  idxError.value = null
   try {
     const params = {
       year: filters.year,
@@ -43,15 +40,10 @@ async function fetchReports(force = false) {
     if (filters.kodeEmiten) {
       params.kodeEmiten = filters.kodeEmiten
     }
-    if (force) {
-      params.force = 'true'
-    }
 
     const res = await axios.get(`${API_BASE}/api/financial-reports`, { params })
     reports.value = res.data.Results || []
     totalCount.value = res.data.ResultCount || 0
-    idxFetchedCount.value = res.data.idxFetchedCount || 0
-    idxError.value = res.data.idxError || null
   } catch (err) {
     error.value = err.response?.data?.error || err.message
   } finally {
@@ -222,25 +214,6 @@ watch(() => filters.kodeEmiten, () => {
       </div>
     </div>
 
-    <!-- IDX ERROR BANNER -->
-    <div v-if="idxError" class="fr-idx-error">
-      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-        <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>
-      </svg>
-      <div class="fr-idx-error-body">
-        <p class="fr-idx-error-title">Gagal mengambil data dari IDX</p>
-        <p class="fr-idx-error-detail">
-          Status: {{ idxError.status || 'N/A' }} — {{ idxError.message }}
-        </p>
-        <p class="fr-idx-error-hint">
-          Server ini kemungkinan diblokir oleh IDX (IP geo-restriction). Solusi: jalankan seed dari laptop lokal atau gunakan proxy Indonesia.
-        </p>
-        <button class="fr-btn-apply" @click="fetchReports(true)" :disabled="loading">
-          {{ loading ? 'Mencoba...' : 'Refresh dari IDX (Retry)' }}
-        </button>
-      </div>
-    </div>
-
     <!-- ERROR -->
     <div v-if="error" class="fr-error">
       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -260,20 +233,19 @@ watch(() => filters.kodeEmiten, () => {
       <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
         <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/>
       </svg>
-      <p>Tidak ada laporan untuk filter yang dipilih</p>
-      <div v-if="idxError" style="display:flex; flex-direction:column; gap:8px; margin-top:12px;">
-        <button class="fr-btn-apply" @click="fetchReports(true)">
-          Coba Refresh dari IDX
-        </button>
-        <a
-          href="https://www.idx.co.id/id/perusahaan-tercatat/laporan-keuangan-dan-tahunan/"
-          target="_blank"
-          class="fr-btn-apply"
-          style="background:#205BFC; text-decoration:none; text-align:center; display:inline-block;"
-        >
-          Akses Laporan di BEI/IDX
-        </a>
-      </div>
+      <p>Database laporan keuangan masih kosong.</p>
+      <p style="font-size: 13px; color: #9ca3af; margin-top: 4px;">
+        Untuk mengisi data, jalankan seed script dari laptop lokal:<br>
+        <code style="background: #f3f4f6; padding: 2px 6px; border-radius: 4px;">node workers/seed-financial-reports-from-idx.js</code>
+      </p>
+      <a
+        href="https://www.idx.co.id/id/perusahaan-tercatat/laporan-keuangan-dan-tahunan/"
+        target="_blank"
+        class="fr-btn-apply"
+        style="margin-top: 16px; text-decoration: none; display: inline-block;"
+      >
+        Akses Laporan di BEI/IDX
+      </a>
     </div>
 
     <!-- RESULTS GRID -->

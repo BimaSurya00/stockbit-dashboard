@@ -278,96 +278,10 @@ app.get('/api/financial-reports', async (req, res) => {
       dbFilter.kodeEmiten = kodeEmiten.toUpperCase();
     }
 
-    const force = req.query.force === 'true';
-
-    // Check cache first
-    const cachedCount = await FinancialReport.countDocuments(dbFilter);
-    let idxError = null;
-    let idxFetchedCount = 0;
-
-    // If cache is empty or force refresh, fetch from IDX
-    if (cachedCount === 0 || force) {
-      try {
-        console.log('[IDX] Fetching from IDX API...');
-        const idxRes = await axios.get('https://www.idx.co.id/primary/ListedCompany/GetFinancialReport', {
-          params: {
-            indexFrom: parseInt(indexFrom) || 1,
-            pageSize: parseInt(pageSize) || 12,
-            year,
-            reportType,
-            EmitenType: emitenType,
-            periode: periode.toLowerCase(),
-            kodeEmiten: kodeEmiten || '',
-            SortColumn: sortColumn,
-            SortOrder: sortOrder
-          },
-          headers: {
-            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
-            'Accept': 'application/json, text/plain, */*',
-            'Accept-Language': 'id-ID,id;q=0.9,en-US;q=0.8,en;q=0.7',
-            'Accept-Encoding': 'gzip, deflate, br',
-            'Referer': 'https://www.idx.co.id/id/perusahaan-tercatat/laporan-keuangan-dan-tahunan/',
-            'Origin': 'https://www.idx.co.id',
-            'Sec-Fetch-Dest': 'empty',
-            'Sec-Fetch-Mode': 'cors',
-            'Sec-Fetch-Site': 'same-origin',
-            'Connection': 'keep-alive',
-            'Cache-Control': 'no-cache',
-            'Pragma': 'no-cache'
-          },
-          timeout: 15000,
-          decompress: true
-        });
-
-        const results = idxRes.data?.Results || [];
-        idxFetchedCount = results.length;
-
-        // Save to DB
-        for (const item of results) {
-          await FinancialReport.findOneAndUpdate(
-            {
-              kodeEmiten: item.KodeEmiten,
-              reportYear: item.Report_Year,
-              reportPeriod: item.Report_Period,
-              reportType: reportType
-            },
-            {
-              kodeEmiten: item.KodeEmiten,
-              namaEmiten: item.NamaEmiten,
-              reportYear: item.Report_Year,
-              reportPeriod: item.Report_Period,
-              reportType: reportType,
-              emitenType: emitenType,
-              fileModified: item.File_Modified ? new Date(item.File_Modified) : null,
-              attachments: (item.Attachments || []).map(att => ({
-                fileId: att.File_ID,
-                fileName: att.File_Name,
-                filePath: att.File_Path,
-                fileSize: att.File_Size,
-                fileType: att.File_Type,
-                reportPeriod: att.Report_Period,
-                reportType: att.Report_Type,
-                reportYear: att.Report_Year
-              })),
-              updatedAt: new Date()
-            },
-            { upsert: true, new: true }
-          );
-        }
-        console.log(`[IDX] Saved ${results.length} reports to DB`);
-      } catch (idxErr) {
-        console.error('[IDX ERROR]', idxErr.message);
-        idxError = {
-          message: idxErr.message,
-          status: idxErr.response?.status || null,
-          statusText: idxErr.response?.statusText || null
-        };
-        if (idxErr.response) {
-          console.error('[IDX ERROR] Status:', idxErr.response.status);
-          console.error('[IDX ERROR] Data:', idxErr.response.data?.substring?.(0, 200) || idxErr.response.data);
-        }
-      }
-    }
+    // NOTE: IDX API calls are disabled because the server IP is blocked (403).
+    // To populate the database, run workers/seed-financial-reports-from-idx.js
+    // manually from a machine with an Indonesian IP that can access IDX.
+    // This endpoint now only serves cached data from MongoDB.
 
     // Fetch from DB
     const dbResults = await FinancialReport.find(dbFilter)
@@ -406,10 +320,7 @@ app.get('/api/financial-reports', async (req, res) => {
           Report_Type: att.reportType,
           Report_Year: att.reportYear
         }))
-      })),
-      idxError,
-      idxFetchedCount,
-      cached: !force && cachedCount > 0
+      }))
     });
 
   } catch (err) {
