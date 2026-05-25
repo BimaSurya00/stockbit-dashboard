@@ -41,18 +41,38 @@ async function fetchPage(indexFrom) {
       SortOrder: 'asc'
     },
     headers: {
-      'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
+      'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/135.0.0.0 Safari/537.36',
       'Accept': 'application/json, text/plain, */*',
       'Accept-Language': 'id-ID,id;q=0.9,en-US;q=0.8,en;q=0.7',
+      'Accept-Encoding': 'gzip, deflate, br',
       'Referer': 'https://www.idx.co.id/id/perusahaan-tercatat/laporan-keuangan-dan-tahunan/',
       'Origin': 'https://www.idx.co.id',
       'Sec-Fetch-Dest': 'empty',
       'Sec-Fetch-Mode': 'cors',
-      'Sec-Fetch-Site': 'same-origin'
+      'Sec-Fetch-Site': 'same-origin',
+      'Connection': 'keep-alive',
+      'Cache-Control': 'no-cache',
+      'Pragma': 'no-cache'
     },
+    decompress: true,
     timeout: 20000,
-    decompress: true
+    maxRedirects: 5,
+    validateStatus: (status) => {
+      // Allow us to inspect 403 responses
+      return status < 500;
+    }
   });
+
+  if (res.status === 403) {
+    console.error('[IDX DEBUG] Status 403 - Response body (first 500 chars):');
+    const bodyPreview = typeof res.data === 'string'
+      ? res.data.substring(0, 500)
+      : JSON.stringify(res.data).substring(0, 500);
+    console.error(bodyPreview);
+    console.error('[IDX DEBUG] Headers sent:', JSON.stringify(res.config.headers));
+    throw new Error(`IDX returned 403 - possible IP block. Response preview above.`);
+  }
+
   return res.data;
 }
 

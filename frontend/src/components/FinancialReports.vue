@@ -61,7 +61,9 @@ async function fetchReports(force = false) {
 
 function downloadFile(filePath) {
   if (!filePath) return
-  const url = `${API_BASE}/api/financial-reports/download?path=${encodeURIComponent(filePath)}`
+  // Direct link ke IDX karena server production diblokir (403)
+  // Browser user (IP Indonesia) bisa akses langsung tanpa proxy
+  const url = `https://www.idx.co.id${filePath}`
   window.open(url, '_blank')
 }
 
@@ -254,9 +256,19 @@ watch(() => filters.kodeEmiten, () => {
         <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/>
       </svg>
       <p>Tidak ada laporan untuk filter yang dipilih</p>
-      <button v-if="idxError" class="fr-btn-apply" @click="fetchReports(true)" style="margin-top: 12px;">
-        Coba lagi
-      </button>
+      <div v-if="idxError" style="display:flex; flex-direction:column; gap:8px; margin-top:12px;">
+        <button class="fr-btn-apply" @click="fetchReports(true)">
+          Coba Refresh dari IDX
+        </button>
+        <a
+          href="https://www.idx.co.id/id/perusahaan-tercatat/laporan-keuangan-dan-tahunan/"
+          target="_blank"
+          class="fr-btn-apply"
+          style="background:#205BFC; text-decoration:none; text-align:center; display:inline-block;"
+        >
+          Akses Laporan di BEI/IDX
+        </a>
+      </div>
     </div>
 
     <!-- RESULTS GRID -->
