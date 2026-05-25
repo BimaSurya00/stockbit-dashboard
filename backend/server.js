@@ -278,11 +278,15 @@ app.get('/api/financial-reports', async (req, res) => {
       dbFilter.kodeEmiten = kodeEmiten.toUpperCase();
     }
 
+    const force = req.query.force === 'true';
+
     // Check cache first
     const cachedCount = await FinancialReport.countDocuments(dbFilter);
-    
-    // If cache is empty or stale, fetch from IDX
-    if (cachedCount === 0) {
+    let idxError = null;
+    let idxFetchedCount = 0;
+
+    // If cache is empty or force refresh, fetch from IDX
+    if (cachedCount === 0 || force) {
       try {
         console.log('[IDX] Fetching from IDX API...');
         const idxRes = await axios.get('https://www.idx.co.id/primary/ListedCompany/GetFinancialReport', {
@@ -316,7 +320,8 @@ app.get('/api/financial-reports', async (req, res) => {
         });
 
         const results = idxRes.data?.Results || [];
-        
+        idxFetchedCount = results.length;
+
         // Save to DB
         for (const item of results) {
           await FinancialReport.findOneAndUpdate(
@@ -349,13 +354,18 @@ app.get('/api/financial-reports', async (req, res) => {
             { upsert: true, new: true }
           );
         }
+        console.log(`[IDX] Saved ${results.length} reports to DB`);
       } catch (idxErr) {
         console.error('[IDX ERROR]', idxErr.message);
+        idxError = {
+          message: idxErr.message,
+          status: idxErr.response?.status || null,
+          statusText: idxErr.response?.statusText || null
+        };
         if (idxErr.response) {
           console.error('[IDX ERROR] Status:', idxErr.response.status);
           console.error('[IDX ERROR] Data:', idxErr.response.data?.substring?.(0, 200) || idxErr.response.data);
         }
-        // Continue with cache if available - do not return error, just log it
       }
     }
 
@@ -396,7 +406,10 @@ app.get('/api/financial-reports', async (req, res) => {
           Report_Type: att.reportType,
           Report_Year: att.reportYear
         }))
-      }))
+      })),
+      idxError,
+      idxFetchedCount,
+      cached: !force && cachedCount > 0
     });
 
   } catch (err) {
