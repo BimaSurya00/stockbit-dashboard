@@ -12,8 +12,8 @@ const totalCount = ref(0)
 const idxFetchedCount = ref(0)
 
 const filters = reactive({
-  reportType: 'rdf', // rdf = Laporan Keuangan, annual = Laporan Tahunan
-  emitenType: 's', // s = Saham, o = Obligasi
+  reportType: 'rdf',
+  emitenType: 's',
   year: '2026',
   periode: 'tw1',
   kodeEmiten: '',
@@ -61,8 +61,6 @@ async function fetchReports(force = false) {
 
 function downloadFile(filePath) {
   if (!filePath) return
-  // Direct link ke IDX karena server production diblokir (403)
-  // Browser user (IP Indonesia) bisa akses langsung tanpa proxy
   const url = `https://www.idx.co.id${filePath}`
   window.open(url, '_blank')
 }
@@ -96,10 +94,17 @@ function formatDate(dateStr) {
 }
 
 function formatFileSize(bytes) {
-  if (!bytes) return '-'
+  if (!bytes) return ''
   if (bytes >= 1024 * 1024) return (bytes / (1024 * 1024)).toFixed(2) + ' MB'
   if (bytes >= 1024) return (bytes / 1024).toFixed(2) + ' KB'
   return bytes + ' B'
+}
+
+function getFileIcon(fileType) {
+  if (fileType === '.pdf') return '📄'
+  if (fileType === '.xlsx') return '📊'
+  if (fileType === '.zip') return '📦'
+  return '📎'
 }
 
 onMounted(() => {
@@ -274,46 +279,48 @@ watch(() => filters.kodeEmiten, () => {
     <!-- RESULTS GRID -->
     <div v-else class="fr-grid">
       <div v-for="report in reports" :key="report.KodeEmiten + report.Report_Year + report.Report_Period" class="fr-card">
+        <!-- Card Header -->
         <div class="fr-card-header">
           <h3 class="fr-card-code">{{ report.KodeEmiten }}</h3>
           <span class="fr-card-date">{{ formatDate(report.File_Modified) }}</span>
         </div>
+
+        <!-- Info Table -->
         <div class="fr-card-info">
           <div class="fr-info-row">
             <span class="fr-info-label">Nama</span>
+            <span class="fr-info-separator">:</span>
             <span class="fr-info-value">{{ report.NamaEmiten }}</span>
           </div>
           <div class="fr-info-row">
             <span class="fr-info-label">Tahun</span>
+            <span class="fr-info-separator">:</span>
             <span class="fr-info-value">{{ report.Report_Year }}</span>
           </div>
           <div class="fr-info-row">
             <span class="fr-info-label">Periode</span>
+            <span class="fr-info-separator">:</span>
             <span class="fr-info-value">{{ report.Report_Period }}</span>
           </div>
         </div>
-        <div class="fr-card-attachments">
-          <div v-for="att in report.Attachments" :key="att.File_ID" class="fr-attachment">
-            <div class="fr-attachment-icon">
-              <svg v-if="att.File_Type === '.pdf'" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/>
+
+        <!-- File List -->
+        <div class="fr-card-files">
+          <div
+            v-for="att in report.Attachments"
+            :key="att.File_ID"
+            class="fr-file-row"
+            @click="downloadFile(att.File_Path)"
+            title="Download: {{ att.File_Name }}"
+          >
+            <span class="fr-file-name">{{ att.File_Name }}</span>
+            <span class="fr-file-download-icon">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#B91C1C" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                <polyline points="7 10 12 15 17 10"/>
+                <line x1="12" y1="15" x2="12" y2="3"/>
               </svg>
-              <svg v-else-if="att.File_Type === '.xlsx'" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="8" y1="13" x2="16" y2="13"/><line x1="8" y1="17" x2="16" y2="17"/><line x1="10" y1="9" x2="8" y2="13"/>
-              </svg>
-              <svg v-else width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/>
-              </svg>
-            </div>
-            <div class="fr-attachment-info">
-              <span class="fr-attachment-name" :title="att.File_Name">{{ att.File_Name }}</span>
-              <span class="fr-attachment-size">{{ formatFileSize(att.File_Size) }}</span>
-            </div>
-            <button class="fr-attachment-download" @click="downloadFile(att.File_Path)" title="Download">
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/>
-              </svg>
-            </button>
+            </span>
           </div>
         </div>
       </div>
@@ -354,7 +361,7 @@ watch(() => filters.kodeEmiten, () => {
 <style scoped>
 .fr-container {
   padding: 24px;
-  max-width: 1200px;
+  max-width: 1400px;
 }
 
 .fr-header {
@@ -515,7 +522,7 @@ watch(() => filters.kodeEmiten, () => {
 
 .fr-btn-apply {
   padding: 8px 20px;
-  background: #EF4444;
+  background: #B91C1C;
   border: none;
   border-radius: 8px;
   font-size: 13px;
@@ -526,7 +533,7 @@ watch(() => filters.kodeEmiten, () => {
 }
 
 .fr-btn-apply:hover {
-  background: #DC2626;
+  background: #991B1B;
 }
 
 /* CONTROLS */
@@ -649,7 +656,7 @@ watch(() => filters.kodeEmiten, () => {
   width: 32px;
   height: 32px;
   border: 3px solid #e5e7eb;
-  border-top-color: #205BFC;
+  border-top-color: #B91C1C;
   border-radius: 50%;
   animation: frSpin 0.8s linear infinite;
   margin-bottom: 12px;
@@ -674,57 +681,76 @@ watch(() => filters.kodeEmiten, () => {
   opacity: 0.5;
 }
 
-/* GRID */
+/* GRID - 3 column card layout like IDX screenshot */
 .fr-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(350px, 1fr));
-  gap: 16px;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 24px;
 }
 
+@media (max-width: 1200px) {
+  .fr-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+@media (max-width: 768px) {
+  .fr-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* CARD */
 .fr-card {
   background: white;
   border: 1px solid #e5e7eb;
-  border-radius: 12px;
-  padding: 20px;
+  border-radius: 4px;
+  padding: 0;
   transition: all 0.2s;
+  overflow: hidden;
 }
 
 .fr-card:hover {
   border-color: #d1d5db;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
 }
 
+/* Card Header */
 .fr-card-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: 16px;
+  padding: 16px 20px 8px 20px;
+  border-bottom: 1px solid #f3f4f6;
 }
 
 .fr-card-code {
   font-family: 'DM Sans', sans-serif;
-  font-size: 20px;
-  font-weight: 800;
-  color: #111827;
+  font-size: 28px;
+  font-weight: 700;
+  color: #4b5563;
   margin: 0;
+  letter-spacing: -0.5px;
 }
 
 .fr-card-date {
-  font-size: 11px;
+  font-size: 12px;
   color: #9ca3af;
   font-weight: 500;
 }
 
+/* Card Info */
 .fr-card-info {
-  margin-bottom: 16px;
-  padding-bottom: 16px;
+  padding: 12px 20px;
   border-bottom: 1px solid #f3f4f6;
 }
 
 .fr-info-row {
   display: flex;
-  gap: 12px;
+  gap: 8px;
   margin-bottom: 6px;
+  font-size: 14px;
+  line-height: 1.5;
 }
 
 .fr-info-row:last-child {
@@ -732,90 +758,72 @@ watch(() => filters.kodeEmiten, () => {
 }
 
 .fr-info-label {
-  font-size: 12px;
-  color: #9ca3af;
-  font-weight: 500;
-  min-width: 50px;
+  color: #6b7280;
+  min-width: 55px;
+  font-weight: 400;
+}
+
+.fr-info-separator {
+  color: #6b7280;
 }
 
 .fr-info-value {
-  font-size: 13px;
   color: #374151;
-  font-weight: 600;
+  font-weight: 500;
 }
 
-.fr-card-attachments {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
+/* Card Files - styled like IDX screenshot */
+.fr-card-files {
+  padding: 0;
 }
 
-.fr-attachment {
+.fr-file-row {
   display: flex;
+  justify-content: space-between;
   align-items: center;
-  gap: 10px;
-  padding: 8px 10px;
+  padding: 10px 20px;
+  cursor: pointer;
+  border-bottom: 1px solid #f3f4f6;
+  transition: background 0.15s;
+}
+
+.fr-file-row:last-child {
+  border-bottom: none;
+}
+
+.fr-file-row:hover {
   background: #f9fafb;
-  border-radius: 8px;
-  transition: background 0.2s;
 }
 
-.fr-attachment:hover {
-  background: #f3f4f6;
-}
-
-.fr-attachment-icon {
-  width: 32px;
-  height: 32px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: white;
-  border-radius: 8px;
-  color: #6b7280;
-  flex-shrink: 0;
-}
-
-.fr-attachment-info {
+.fr-file-name {
+  font-size: 13px;
+  color: #4b5563;
+  font-weight: 400;
   flex: 1;
   min-width: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-}
-
-.fr-attachment-name {
-  font-size: 12px;
-  font-weight: 500;
-  color: #374151;
-  white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+  white-space: nowrap;
+  padding-right: 12px;
 }
 
-.fr-attachment-size {
-  font-size: 10px;
-  color: #9ca3af;
-  font-weight: 500;
-}
-
-.fr-attachment-download {
-  width: 32px;
-  height: 32px;
+.fr-file-download-icon {
+  flex-shrink: 0;
   display: flex;
   align-items: center;
   justify-content: center;
-  background: #205BFC;
-  border: none;
-  border-radius: 8px;
-  color: white;
-  cursor: pointer;
-  transition: all 0.2s;
-  flex-shrink: 0;
+  width: 24px;
+  height: 24px;
+  color: #B91C1C;
+  transition: transform 0.15s;
 }
 
-.fr-attachment-download:hover {
-  background: #1d4ed8;
+.fr-file-row:hover .fr-file-download-icon {
+  transform: scale(1.1);
+}
+
+.fr-file-download-icon svg {
+  display: block;
 }
 
 /* PAGINATION */
