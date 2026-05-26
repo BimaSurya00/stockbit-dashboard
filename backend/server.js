@@ -272,10 +272,11 @@ app.get('/api/financial-reports', async (req, res) => {
     const dbFilter = {
       reportYear: year,
       reportType,
-      reportPeriod: periode.toUpperCase()
+      reportPeriod: periode.toUpperCase(),
+      emitenType
     };
     if (kodeEmiten) {
-      dbFilter.kodeEmiten = kodeEmiten.toUpperCase();
+      dbFilter.kodeEmiten = { $regex: `^${kodeEmiten}`, $options: 'i' };
     }
 
     // NOTE: IDX API calls are disabled because the server IP is blocked (403).
@@ -283,9 +284,19 @@ app.get('/api/financial-reports', async (req, res) => {
     // manually from a machine with an Indonesian IP that can access IDX.
     // This endpoint now only serves cached data from MongoDB.
 
+    // Map sort column to DB field
+    const sortFieldMap = {
+      'KodeEmiten': 'kodeEmiten',
+      'NamaEmiten': 'namaEmiten',
+      'Report_Year': 'reportYear',
+      'Report_Period': 'reportPeriod',
+      'File_Modified': 'fileModified'
+    };
+    const dbSortField = sortFieldMap[sortColumn] || 'kodeEmiten';
+
     // Fetch from DB
     const dbResults = await FinancialReport.find(dbFilter)
-      .sort({ kodeEmiten: sortOrder === 'asc' ? 1 : -1 })
+      .sort({ [dbSortField]: sortOrder === 'asc' ? 1 : -1 })
       .limit(parseInt(pageSize))
       .skip(parseInt(indexFrom) - 1);
 

@@ -106,6 +106,12 @@ onMounted(() => {
 watch(() => filters.kodeEmiten, () => {
   filters.indexFrom = 1
 })
+
+// Auto-fetch when radio filters change
+watch(() => [filters.year, filters.periode, filters.reportType, filters.emitenType], () => {
+  filters.indexFrom = 1
+  fetchReports()
+}, { deep: true })
 </script>
 
 <template>
