@@ -15,8 +15,8 @@
 
 set -e
 
-# Default file: auto-detect file idx-2025-tw2 terbaru di project root
-DEFAULT_FILE=$(ls -t /home/Bima/Documents/stockbit-dashboard/idx-2025-tw2-*.json 2>/dev/null | head -1)
+# Default file: auto-detect file idx-*.json terbaru di project root
+DEFAULT_FILE=$(ls -t /home/Bima/Documents/stockbit-dashboard/idx-*.json 2>/dev/null | head -1)
 
 JSON_FILE="${1:-$DEFAULT_FILE}"
 
@@ -26,7 +26,8 @@ if [ -z "$JSON_FILE" ] || [ ! -f "$JSON_FILE" ]; then
     echo "=========================================="
     echo ""
     echo "Usage:"
-    echo "  $0 /path/to/idx-2025-tw2-xxxxxxxxx.json"
+    echo "  $0 /path/to/idx-2022-tw1-xxxxxxxxx.json"
+    echo "  $0 /path/to/idx-2022-tw2-xxxxxxxxx.json"
     echo ""
     echo "Atau letakkan file JSON di folder project:"
     echo "  /home/Bima/Documents/stockbit-dashboard/"
