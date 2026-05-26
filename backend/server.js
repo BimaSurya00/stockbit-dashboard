@@ -269,10 +269,20 @@ app.get('/api/financial-reports', async (req, res) => {
     } = req.query;
 
     // Build filter for DB query
+    // Map frontend periode values to DB reportPeriod values
+    const periodeMap = {
+      'tw1': 'TW1',
+      'tw2': 'TW2',
+      'tw3': 'TW3',
+      'tahunan': 'Audit',
+      'audit': 'Audit'
+    };
+    const dbReportPeriod = periodeMap[periode.toLowerCase()] || periode.toUpperCase();
+
     const dbFilter = {
       reportYear: year,
       reportType,
-      reportPeriod: periode.toUpperCase(),
+      reportPeriod: dbReportPeriod,
       emitenType
     };
     if (kodeEmiten) {
