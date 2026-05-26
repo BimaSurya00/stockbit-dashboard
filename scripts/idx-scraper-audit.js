@@ -1,5 +1,5 @@
 (async function scrapeIDX() {
-  let YEAR = '2025';
+  let YEAR = '2023';
   let PERIODE = 'audit';       // ← FIX: bukan 'tahunan', tapi 'audit'
   let REPORT_TYPE = 'rdf';
   
