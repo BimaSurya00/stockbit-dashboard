@@ -8,7 +8,7 @@
  * 4. Paste script ini → Enter
  * 5. Tunggu sampai "SELESAI!"
  * 
- * FIX: Gunakan pageSize besar untuk ambil semua data sekaligus
+ * FIX: Gunakan pageSize besar untuk ambil semua data sekaligus.
  */
 
 (async function scrapeIDX() {
