@@ -16,7 +16,8 @@ import {
 ChartJS.register(Title, Tooltip, Legend, LineElement, CategoryScale, LinearScale, PointElement, Filler)
 
 const props = defineProps({
-  data: Object
+  data: Object,
+  overlays: { type: Array, default: () => [] } // Overlay indicators
 })
 
 const chartData = computed(() => {
@@ -57,7 +58,8 @@ const chartData = computed(() => {
   // Filter out items with empty/invalid values
   const validItems = items.filter(item => {
     const hasValue = item.value !== undefined && item.value !== '' && item.value !== null
-    const hasDate = item.date !== undefined && item.date !== '' && item.date !== '0'
+    // Accept items with valid formatted_date even if date is "0"
+    const hasDate = (item.formatted_date && item.formatted_date !== '') || (item.date && item.date !== '0' && item.date !== '')
     return hasValue && hasDate
   })
   
@@ -74,11 +76,15 @@ const chartData = computed(() => {
   }
 
   // Sampling untuk data yang terlalu banyak (max 200 points)
+  // Jika ada overlays, jangan sampling agar data alignment tetap match
   let displayItems = validItems
-  if (validItems.length > 200) {
+  const hasOverlays = props.overlays && props.overlays.length > 0
+  if (validItems.length > 200 && !hasOverlays) {
     const step = Math.ceil(validItems.length / 200)
     displayItems = validItems.filter((_, index) => index % step === 0)
     console.log('[StockChart] Sampled from', validItems.length, 'to', displayItems.length, 'points')
+  } else if (hasOverlays) {
+    console.log('[StockChart] Skipping sampling, overlays present. Points:', displayItems.length)
   }
 
   // Ekstrak label dan nilai
@@ -134,6 +140,18 @@ function getMonthName(monthNum) {
   return months[idx] || ''
 }
 
+// Color palette for overlay indicators
+const overlayColors = [
+  { border: '#3B82F6', bg: 'rgba(59, 130, 246, 0.1)' },   // Blue
+  { border: '#EF4444', bg: 'rgba(239, 68, 68, 0.1)' },     // Red
+  { border: '#10B981', bg: 'rgba(16, 185, 129, 0.1)' },    // Green
+  { border: '#F59E0B', bg: 'rgba(245, 158, 11, 0.1)' },    // Amber
+  { border: '#8B5CF6', bg: 'rgba(139, 92, 246, 0.1)' },    // Purple
+  { border: '#EC4899', bg: 'rgba(236, 72, 153, 0.1)' },    // Pink
+  { border: '#14B8A6', bg: 'rgba(20, 184, 166, 0.1)' },    // Teal
+  { border: '#F97316', bg: 'rgba(249, 115, 22, 0.1)' },    // Orange
+]
+
 const lineChartConfig = computed(() => {
   if (!chartData.value) return null
   const { labels, prices } = chartData.value
@@ -147,26 +165,106 @@ const lineChartConfig = computed(() => {
   const maxPrice = Math.max(...validPrices)
   const padding = (maxPrice - minPrice) * 0.1 || maxPrice * 0.1
 
+  // Main price dataset
+  console.log('[StockChart] Creating chart with', labels.length, 'labels and', prices.length, 'prices')
+  const datasets = [
+    {
+      label: 'Harga',
+      data: prices,
+      borderColor: '#00b4d8',
+      backgroundColor: 'rgba(0, 180, 216, 0.1)',
+      borderWidth: 2,
+      fill: true,
+      tension: 0.4,
+      pointRadius: prices.length > 50 ? 0 : 4,
+      pointBackgroundColor: '#00b4d8',
+      pointBorderColor: '#fff',
+      pointBorderWidth: 2,
+      pointHoverRadius: 6,
+      order: 10, // Main chart always on top
+    }
+  ]
+
+  // Add overlay indicators
+  if (props.overlays && props.overlays.length > 0) {
+    console.log('[StockChart] Adding overlays:', props.overlays.length)
+    let colorIdx = 0
+
+    for (const overlay of props.overlays) {
+      if (!overlay.config || overlay.error) {
+        console.log('[StockChart] Skipping overlay:', overlay.indicator, 'error:', overlay.error)
+        continue
+      }
+
+      const outputs = [...(overlay.config.outputs || [])] // Convert from Proxy to plain array
+      console.log('[StockChart] Processing overlay:', overlay.indicator, 'outputs:', outputs)
+
+      if (overlay.config.fillBetween && outputs.length === 3) {
+        // Bollinger Bands style: upper, middle, lower with fill
+        const color = overlayColors[colorIdx % overlayColors.length]
+
+        datasets.push({
+          label: `${overlay.indicator} Upper`,
+          data: overlay.data[outputs[0]], // upper
+          borderColor: color.border,
+          borderWidth: 1,
+          borderDash: [4, 4],
+          pointRadius: 0,
+          fill: false,
+          order: 5
+        })
+
+        datasets.push({
+          label: `${overlay.indicator} Middle`,
+          data: overlay.data[outputs[1]], // middle
+          borderColor: color.border,
+          borderWidth: 1.5,
+          pointRadius: 0,
+          fill: false,
+          order: 5
+        })
+
+        datasets.push({
+          label: `${overlay.indicator} Lower`,
+          data: overlay.data[outputs[2]], // lower
+          borderColor: color.border,
+          borderWidth: 1,
+          borderDash: [4, 4],
+          pointRadius: 0,
+          fill: '-1', // Fill to previous dataset (upper)
+          backgroundColor: color.bg,
+          order: 5
+        })
+
+        colorIdx++
+      } else {
+        // Regular line overlay
+        for (const outputKey of outputs) {
+          const color = overlayColors[colorIdx % overlayColors.length]
+
+          datasets.push({
+            label: `${overlay.indicator} ${outputKey}`,
+            data: overlay.data[outputKey],
+            borderColor: color.border,
+            borderWidth: 1.5,
+            pointRadius: 0,
+            fill: false,
+            order: 5
+          })
+
+          colorIdx++
+        }
+      }
+    }
+  }
+
+  console.log('[StockChart] Total datasets:', datasets.length, datasets.map(d => d.label))
+
   return {
     type: 'line',
     data: {
       labels,
-      datasets: [
-        {
-          label: 'Harga',
-          data: prices,
-          borderColor: '#00b4d8',
-          backgroundColor: 'rgba(0, 180, 216, 0.1)',
-          borderWidth: 2,
-          fill: true,
-          tension: 0.4,
-          pointRadius: prices.length > 50 ? 0 : 4, // Hide points kalau data banyak
-          pointBackgroundColor: '#00b4d8',
-          pointBorderColor: '#fff',
-          pointBorderWidth: 2,
-          pointHoverRadius: 6,
-        }
-      ]
+      datasets
     },
     options: {
       responsive: true,
@@ -178,13 +276,28 @@ const lineChartConfig = computed(() => {
       plugins: {
         legend: {
           display: true,
-          position: 'top'
+          position: 'top',
+          labels: {
+            boxWidth: 12,
+            padding: 8,
+            font: { size: 11, family: 'Inter' }
+          }
         },
         tooltip: {
+          backgroundColor: 'rgba(15, 23, 42, 0.9)',
+          titleFont: { size: 11, family: 'Inter' },
+          bodyFont: { size: 11, family: 'Inter', weight: '600' },
+          padding: 10,
+          cornerRadius: 8,
           callbacks: {
             label: (context) => {
               const val = context.parsed.y
-              return `Rp ${val ? val.toLocaleString('id-ID') : '0'}`
+              if (val === null || val === undefined) return ''
+              const label = context.dataset.label || ''
+              if (label === 'Harga') {
+                return `${label}: Rp ${val.toLocaleString('id-ID')}`
+              }
+              return `${label}: ${val.toFixed(2)}`
             }
           }
         }
@@ -193,14 +306,23 @@ const lineChartConfig = computed(() => {
         y: {
           min: Math.max(0, minPrice - padding),
           max: maxPrice + padding,
+          grid: {
+            color: 'rgba(0,0,0,0.04)',
+            drawBorder: false
+          },
           ticks: {
+            font: { size: 11, family: 'Inter' },
+            color: '#94A3B8',
             callback: (value) => `Rp ${value ? value.toLocaleString('id-ID') : '0'}`
           }
         },
         x: {
+          grid: { display: false },
           ticks: {
             maxTicksLimit: 8,
-            maxRotation: 45
+            maxRotation: 45,
+            font: { size: 10, family: 'Inter' },
+            color: '#94A3B8'
           }
         }
       }
@@ -307,7 +429,7 @@ const stats = computed(() => {
   font-weight: bold;
 }
 .chart-wrapper {
-  height: 400px;
+  height: 450px;
   background: white;
   padding: 20px;
   border-radius: 8px;

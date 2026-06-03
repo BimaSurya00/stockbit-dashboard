@@ -562,6 +562,26 @@ app.post('/api/emiten/:symbol/fetch-chart', checkTokenMiddleware, async (req, re
       { upsert: true }
     );
 
+    // Also save to ChartPrice collection (for technical indicators)
+    if (chartData?.data?.prices && chartData.data.prices.length > 0) {
+      await ChartPrice.findOneAndUpdate(
+        { symbol: symbol.toUpperCase(), timeframe },
+        {
+          symbol: symbol.toUpperCase(),
+          timeframe,
+          prices: chartData.data.prices,
+          previous: chartData.data.previous || 0,
+          metadata: {
+            lastPrice: latestPrice ? parseFloat(latestPrice.value) || 0 : 0,
+            change: latestPrice?.change || 0,
+            changePercent: latestPrice?.percentage || '0'
+          },
+          updatedAt: new Date()
+        },
+        { upsert: true }
+      );
+    }
+
     res.json({ success: true, data: chartData });
   } catch (error) {
     console.error('Error fetch chart:', error.message);
@@ -641,6 +661,81 @@ app.get('/api/prices/:symbol', async (req, res) => {
     res.status(404).json({ error: 'No cached data available for this timeframe' });
   } catch (error) {
     res.status(500).json({ error: 'Gagal mengambil data harga', detail: error.message });
+  }
+});
+
+// --- Technical Analysis: List available indicators ---
+const { getIndicatorList, getIndicatorsByCategory, parseIndicatorString } = require('./lib/indicator-registry');
+const { calculateMultiple, extractClosePrices, formatResponse } = require('./lib/technical-analysis');
+
+app.get('/api/indicators', (req, res) => {
+  try {
+    const { groupBy } = req.query;
+
+    if (groupBy === 'category') {
+      return res.json(getIndicatorsByCategory());
+    }
+
+    res.json(getIndicatorList());
+  } catch (error) {
+    res.status(500).json({ error: 'Gagal mengambil daftar indikator', detail: error.message });
+  }
+});
+
+// --- Technical Analysis: Calculate indicators for a symbol ---
+app.get('/api/emiten/:symbol/indicators', async (req, res) => {
+  try {
+    const { symbol } = req.params;
+    const { timeframe = '1y', indicators: indicatorsParam } = req.query;
+
+    if (!indicatorsParam) {
+      return res.status(400).json({
+        error: 'Parameter indicators diperlukan',
+        example: '/api/emiten/BBCA/indicators?indicators=SMA:period=20,RSI:period=14,MACD'
+      });
+    }
+
+    // Parse requested indicators
+    const requested = parseIndicatorString(indicatorsParam);
+    if (requested.length === 0) {
+      return res.status(400).json({ error: 'Tidak ada indikator yang diminta' });
+    }
+
+    // Get price data from MongoDB
+    const chartData = await ChartPrice.findOne({
+      symbol: symbol.toUpperCase(),
+      timeframe
+    }).lean();
+
+    if (!chartData || !chartData.prices || chartData.prices.length === 0) {
+      return res.status(404).json({
+        error: 'Data harga tidak ditemukan',
+        detail: `Tidak ada data untuk ${symbol} dengan timeframe ${timeframe}`
+      });
+    }
+
+    // Extract close prices and labels
+    const closePrices = extractClosePrices(chartData.prices);
+    const labels = chartData.prices.map(p => p.formatted_date || p.date);
+
+    if (closePrices.length < 2) {
+      return res.status(400).json({ error: 'Data harga tidak cukup untuk analisis' });
+    }
+
+    // Calculate indicators
+    const results = calculateMultiple(closePrices, requested);
+
+    // Format response
+    const response = formatResponse(results, closePrices, labels);
+
+    res.json({
+      symbol: symbol.toUpperCase(),
+      timeframe,
+      ...response
+    });
+  } catch (error) {
+    console.error('Error calculating indicators:', error.message);
+    res.status(500).json({ error: 'Gagal menghitung indikator', detail: error.message });
   }
 });
 
