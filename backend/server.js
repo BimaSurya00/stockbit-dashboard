@@ -762,12 +762,35 @@ app.get('/api/chart/:symbol', checkTokenMiddleware, async (req, res) => {
       }
     });
 
+    const chartData = response.data;
+
     cache.set(cacheKey, {
-      data: response.data,
+      data: chartData,
       timestamp: Date.now()
     });
 
-    res.json(response.data);
+    // Also save to ChartPrice collection for technical indicators
+    if (chartData?.data?.prices && chartData.data.prices.length > 0) {
+      const latestPrice = chartData.data.prices[chartData.data.prices.length - 1];
+      ChartPrice.findOneAndUpdate(
+        { symbol: symbol.toUpperCase(), timeframe },
+        {
+          symbol: symbol.toUpperCase(),
+          timeframe,
+          prices: chartData.data.prices,
+          previous: chartData.data.previous || 0,
+          metadata: {
+            lastPrice: latestPrice ? parseFloat(latestPrice.value) || 0 : 0,
+            change: latestPrice?.change || 0,
+            changePercent: latestPrice?.percentage || '0'
+          },
+          updatedAt: new Date()
+        },
+        { upsert: true }
+      ).catch(err => console.error('Error saving to ChartPrice:', err.message));
+    }
+
+    res.json(chartData);
   } catch (error) {
     console.error('Error fetch chart:', error.message);
     if (error.response) {
