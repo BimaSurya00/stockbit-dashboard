@@ -35,8 +35,16 @@ function calculate(closePrices, indicatorKey, params = {}) {
 
   // Merge default params with user params
   const finalParams = {};
+  let autoAdjusted = false;
   config.params.forEach(p => {
-    finalParams[p.key] = params[p.key] !== undefined ? params[p.key] : p.default;
+    let val = params[p.key] !== undefined ? params[p.key] : p.default;
+    // Auto-adjust: if period >= data length, reduce to fit
+    // Ensures indicator always has some visible data
+    if (p.min && val >= closePrices.length) {
+      val = Math.max(p.min, Math.floor(closePrices.length * 0.5));
+      autoAdjusted = true;
+    }
+    finalParams[p.key] = val;
   });
 
   // Build input object for technicalindicators
@@ -127,6 +135,7 @@ function calculate(closePrices, indicatorKey, params = {}) {
   return {
     indicator: indicatorKey,
     params: finalParams,
+    autoAdjusted,
     data: paddedData,
     config: {
       name: config.name,
@@ -165,14 +174,23 @@ function calculateMultiple(closePrices, indicators) {
 
 /**
  * Extract close prices from ChartPrice.prices array
+ * Returns aligned closePrices and the validIndices used to filter,
+ * so that labels can be built from the same indices.
  *
  * @param {Array} prices - Array from ChartPrice document
- * @returns {number[]} - Array of close prices as numbers
+ * @returns {{ closePrices: number[], validIndices: number[] }}
  */
 function extractClosePrices(prices) {
-  return prices
-    .map(p => parseFloat(p.value))
-    .filter(v => !isNaN(v) && v > 0);
+  const closePrices = [];
+  const validIndices = [];
+  prices.forEach((p, i) => {
+    const v = parseFloat(p.value);
+    if (!isNaN(v) && v > 0) {
+      closePrices.push(v);
+      validIndices.push(i);
+    }
+  });
+  return { closePrices, validIndices };
 }
 
 /**
@@ -190,6 +208,7 @@ function formatResponse(results, closePrices, labels) {
     indicators: results.map(r => ({
       indicator: r.indicator,
       params: r.params,
+      autoAdjusted: r.autoAdjusted || false,
       data: r.data,
       config: r.config,
       error: r.error || null,

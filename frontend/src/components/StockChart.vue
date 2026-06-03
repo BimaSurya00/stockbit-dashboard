@@ -1,398 +1,530 @@
 <script setup>
-import { computed } from 'vue'
-import { Line } from 'vue-chartjs'
-import {
-  Chart as ChartJS,
-  Title,
-  Tooltip,
-  Legend,
-  LineElement,
-  CategoryScale,
-  LinearScale,
-  PointElement,
-  Filler
-} from 'chart.js'
-
-ChartJS.register(Title, Tooltip, Legend, LineElement, CategoryScale, LinearScale, PointElement, Filler)
+import { ref, computed, onMounted, onUnmounted, watch, nextTick } from 'vue'
+import { createChart, LineSeries, HistogramSeries } from 'lightweight-charts'
 
 const props = defineProps({
   data: Object,
-  overlays: { type: Array, default: () => [] } // Overlay indicators
+  overlays: { type: Array, default: () => [] }
 })
 
-const chartData = computed(() => {
-  const raw = props.data
+const chartContainer = ref(null)
+const tooltipRef = ref(null)
+let chart = null
+let priceSeries = null
+let volumeSeries = null
+let overlaySeries = []
+let crosshairHandler = null
+let resizeObserver = null
+
+// Color palette for overlay indicators
+const overlayColors = [
+  '#3B82F6', // Blue
+  '#EF4444', // Red
+  '#10B981', // Green
+  '#F59E0B', // Amber
+  '#8B5CF6', // Purple
+  '#EC4899', // Pink
+  '#14B8A6', // Teal
+  '#F97316', // Orange
+]
+
+// Parse chart data from API response
+function parseChartData(raw) {
   if (!raw) return null
 
-  console.log('[StockChart] Raw data keys:', Object.keys(raw))
-  console.log('[StockChart] Raw data sample:', JSON.stringify(raw).slice(0, 500))
-
-  // Stockbit format: { data: { prices: [...], previous: 53 } }
   let items = null
-  
   if (raw.data && Array.isArray(raw.data.prices)) {
     items = raw.data.prices
-    console.log('[StockChart] Found prices in raw.data.prices, length:', items.length)
   } else if (raw.prices && Array.isArray(raw.prices)) {
     items = raw.prices
-    console.log('[StockChart] Found prices in raw.prices, length:', items.length)
   } else {
-    // Fallback: cari array di dalam objek
     for (const key of Object.keys(raw)) {
       if (Array.isArray(raw[key]) && raw[key].length > 0) {
         items = raw[key]
-        console.log('[StockChart] Found array in key:', key, 'length:', items.length)
         break
       }
     }
   }
 
-  if (!items || items.length === 0) {
-    console.warn('[StockChart] No prices array found')
-    return null
-  }
+  if (!items || items.length === 0) return null
 
-  console.log('[StockChart] First item:', JSON.stringify(items[0]))
-  console.log('[StockChart] Last item:', JSON.stringify(items[items.length - 1]))
-
-  // Filter out items with empty/invalid values
   const validItems = items.filter(item => {
-    const hasValue = item.value !== undefined && item.value !== '' && item.value !== null
-    // Accept items with valid formatted_date even if date is "0"
-    const hasDate = (item.formatted_date && item.formatted_date !== '') || (item.date && item.date !== '0' && item.date !== '')
-    return hasValue && hasDate
+    const val = item.value !== undefined && item.value !== '' && item.value !== null
+      ? parseFloat(item.value) : NaN
+    const hasDate = (item.formatted_date && item.formatted_date !== '') ||
+      (item.date && item.date !== '0' && item.date !== '')
+    return !isNaN(val) && val > 0 && hasDate
   })
-  
-  console.log('[StockChart] Valid items:', validItems.length, 'of', items.length)
 
-  if (validItems.length === 0) {
-    console.warn('[StockChart] No valid price items after filtering')
-    // Coba lagi tanpa filter value, hanya filter date
-    const dateOnlyItems = items.filter(item => item.date && item.date !== '0' && item.date !== '')
-    if (dateOnlyItems.length > 0) {
-      console.log('[StockChart] Trying with date-only filter, found:', dateOnlyItems.length)
-    }
-    return null
-  }
+  if (validItems.length === 0) return null
 
-  // Sampling untuk data yang terlalu banyak (max 200 points)
-  // Jika ada overlays, jangan sampling agar data alignment tetap match
-  let displayItems = validItems
+  // Don't sample when overlays are present (alignment)
   const hasOverlays = props.overlays && props.overlays.length > 0
+  let displayItems = validItems
   if (validItems.length > 200 && !hasOverlays) {
     const step = Math.ceil(validItems.length / 200)
-    displayItems = validItems.filter((_, index) => index % step === 0)
-    console.log('[StockChart] Sampled from', validItems.length, 'to', displayItems.length, 'points')
-  } else if (hasOverlays) {
-    console.log('[StockChart] Skipping sampling, overlays present. Points:', displayItems.length)
+    displayItems = validItems.filter((_, i) => i % step === 0)
   }
 
-  // Ekstrak label dan nilai
-  const labels = displayItems.map(item => {
-    if (item.formatted_date) {
-      // Format bisa: "2026-04-29 09:00:00" atau "2026-04-29"
-      const parts = item.formatted_date.split(' ')
-      const dateParts = parts[0].split('-')
-      if (parts.length > 1) {
-        // Ada waktu
-        const timeParts = parts[1].split(':')
-        return `${dateParts[2]} ${getMonthName(dateParts[1])} ${timeParts[0]}:${timeParts[1]}`
-      } else {
-        // Hanya tanggal
-        return `${dateParts[2]} ${getMonthName(dateParts[1])} ${dateParts[0]}`
-      }
-    }
-    if (item.date) {
-      // Timestamp dalam milliseconds
-      const timestamp = parseInt(item.date)
-      if (!isNaN(timestamp) && timestamp > 1000000000000) {
-        const d = new Date(timestamp)
-        return `${d.getDate()} ${getMonthName(d.getMonth() + 1)} ${d.getFullYear()}`
-      }
-    }
-    return ''
-  })
-
-  const prices = displayItems.map(item => {
-    const val = item.value !== undefined ? parseFloat(item.value) : 0
-    return isNaN(val) ? 0 : val
-  })
-
-  const volumes = displayItems.map(item => {
-    const vol = item.volume !== undefined ? parseFloat(item.volume) : 0
-    return isNaN(vol) ? 0 : vol
-  })
-
-  console.log('[StockChart] Labels sample:', labels.slice(0, 3))
-  console.log('[StockChart] Prices sample:', prices.slice(0, 3))
-
-  return {
-    labels,
-    prices,
-    volumes,
-    items: displayItems
-  }
-})
-
-function getMonthName(monthNum) {
-  const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
-  const idx = parseInt(monthNum) - 1
-  return months[idx] || ''
+  const previous = raw.data?.previous || null
+  return { items: displayItems, previous }
 }
 
-// Color palette for overlay indicators
-const overlayColors = [
-  { border: '#3B82F6', bg: 'rgba(59, 130, 246, 0.1)' },   // Blue
-  { border: '#EF4444', bg: 'rgba(239, 68, 68, 0.1)' },     // Red
-  { border: '#10B981', bg: 'rgba(16, 185, 129, 0.1)' },    // Green
-  { border: '#F59E0B', bg: 'rgba(245, 158, 11, 0.1)' },    // Amber
-  { border: '#8B5CF6', bg: 'rgba(139, 92, 246, 0.1)' },    // Purple
-  { border: '#EC4899', bg: 'rgba(236, 72, 153, 0.1)' },    // Pink
-  { border: '#14B8A6', bg: 'rgba(20, 184, 166, 0.1)' },    // Teal
-  { border: '#F97316', bg: 'rgba(249, 115, 22, 0.1)' },    // Orange
-]
-
-const lineChartConfig = computed(() => {
-  if (!chartData.value) return null
-  const { labels, prices } = chartData.value
-
-  if (prices.length === 0) return null
-
-  const validPrices = prices.filter(p => p > 0)
-  if (validPrices.length === 0) return null
-
-  const minPrice = Math.min(...validPrices)
-  const maxPrice = Math.max(...validPrices)
-  const padding = (maxPrice - minPrice) * 0.1 || maxPrice * 0.1
-
-  // Main price dataset
-  console.log('[StockChart] Creating chart with', labels.length, 'labels and', prices.length, 'prices')
-  const datasets = [
-    {
-      label: 'Harga',
-      data: prices,
-      borderColor: '#00b4d8',
-      backgroundColor: 'rgba(0, 180, 216, 0.1)',
-      borderWidth: 2,
-      fill: true,
-      tension: 0.4,
-      pointRadius: prices.length > 50 ? 0 : 4,
-      pointBackgroundColor: '#00b4d8',
-      pointBorderColor: '#fff',
-      pointBorderWidth: 2,
-      pointHoverRadius: 6,
-      order: 10, // Main chart always on top
+// Parse datetime string to Unix timestamp (seconds, UTC)
+// Handles: "2026-06-03 10:49:00", "2026-06-03", or millisecond timestamps
+function parseTime(dateStr) {
+  if (!dateStr) return null
+  if (typeof dateStr === 'number') {
+    return dateStr > 1000000000000 ? Math.floor(dateStr / 1000) : dateStr
+  }
+  if (typeof dateStr === 'string') {
+    // Millisecond timestamp as string
+    const ts = parseInt(dateStr)
+    if (!isNaN(ts) && ts > 1000000000000) return Math.floor(ts / 1000)
+    // Date/datetime string → parse to Unix seconds
+    if (/^\d{4}-\d{2}-\d{2}/.test(dateStr)) {
+      const d = new Date(dateStr.replace(' ', 'T') + 'Z')
+      const unix = Math.floor(d.getTime() / 1000)
+      if (!isNaN(unix) && unix > 0) return unix
     }
-  ]
+  }
+  return null
+}
 
-  // Add overlay indicators
+// Parse a price item to { time, value } using Unix timestamp
+function parseItem(item) {
+  const value = parseFloat(item.value)
+  if (isNaN(value) || value <= 0) return null
+
+  const time = parseTime(item.formatted_date || item.date)
+  if (!time) return null
+
+  return { time, value }
+}
+
+// Deduplicate by time (keep last value per timestamp) and sort ascending
+function dedupAndSort(data) {
+  const map = new Map()
+  for (const item of data) {
+    map.set(item.time, item) // last wins on duplicate
+  }
+  return Array.from(map.values()).sort((a, b) => a.time - b.time)
+}
+
+// Stats computation
+const stats = computed(() => {
+  const parsed = parseChartData(props.data)
+  if (!parsed) return null
+
+  const values = parsed.items.map(i => parseFloat(i.value)).filter(v => !isNaN(v) && v > 0)
+  if (values.length === 0) return null
+
+  const latest = values[values.length - 1]
+  const first = values[0]
+  const previousClose = parsed.previous || first
+  const change = latest - previousClose
+  const changePercent = previousClose !== 0 ? ((change / previousClose) * 100).toFixed(2) : '0.00'
+  const high = Math.max(...values)
+  const low = Math.min(...values)
+
+  return { latest, first, previousClose, change, changePercent, high, low, isPositive: change >= 0 }
+})
+
+// Create and render the chart
+function renderChart() {
+  console.log('[StockChart] renderChart called, container:', !!chartContainer.value, 'data:', !!props.data)
+
+  if (!chartContainer.value) {
+    console.warn('[StockChart] No container ref')
+    return
+  }
+
+  // Destroy previous chart
+  if (chart) {
+    chart.remove()
+    chart = null
+    priceSeries = null
+    volumeSeries = null
+    overlaySeries = []
+  }
+
+  const parsed = parseChartData(props.data)
+  if (!parsed) {
+    console.warn('[StockChart] parseChartData returned null')
+    return
+  }
+
+  const { items } = parsed
+  console.log('[StockChart] Parsed items:', items.length)
+
+  const container = chartContainer.value
+
+  // Get explicit dimensions
+  const rect = container.getBoundingClientRect()
+  const width = rect.width || 800
+  const height = rect.height || 450
+  console.log('[StockChart] Container rect:', rect.width, 'x', rect.height, '-> using:', width, 'x', height)
+
+  // Create chart
+  chart = createChart(container, {
+    width,
+    height,
+    layout: {
+      background: { type: 'solid', color: '#ffffff' },
+      textColor: '#94A3B8',
+      fontSize: 11,
+      fontFamily: 'Inter, sans-serif',
+    },
+    grid: {
+      vertLines: { color: 'rgba(0,0,0,0.04)' },
+      horzLines: { color: 'rgba(0,0,0,0.04)' },
+    },
+    crosshair: {
+      mode: 0,
+      vertLine: {
+        width: 1,
+        color: 'rgba(0,0,0,0.1)',
+        style: 2,
+        labelBackgroundColor: '#205BFC',
+      },
+      horzLine: {
+        width: 1,
+        color: 'rgba(0,0,0,0.1)',
+        style: 2,
+        labelBackgroundColor: '#205BFC',
+      },
+    },
+    rightPriceScale: {
+      borderColor: 'rgba(0,0,0,0.05)',
+      scaleMargins: { top: 0.1, bottom: 0.2 },
+    },
+    timeScale: {
+      borderColor: 'rgba(0,0,0,0.05)',
+      timeVisible: true,
+      secondsVisible: false,
+    },
+    handleScale: { axisPressedMouseMove: true },
+    handleScroll: { vertTouchDrag: true },
+  })
+
+  // --- Price line series ---
+  priceSeries = chart.addSeries(LineSeries,{
+    color: '#00b4d8',
+    lineWidth: 2,
+    crosshairMarkerVisible: true,
+    crosshairMarkerRadius: 4,
+    crosshairMarkerBackgroundColor: '#00b4d8',
+    crosshairMarkerBorderColor: '#fff',
+    crosshairMarkerBorderWidth: 2,
+    lastValueVisible: true,
+    priceLineVisible: true,
+  })
+
+  const priceData = dedupAndSort(
+    items.map(parseItem).filter(Boolean)
+  )
+
+  priceSeries.setData(priceData)
+  console.log('[StockChart] Price data set:', priceData.length, 'points')
+
+  // --- Volume histogram series ---
+  const hasVolume = items.some(i => i.volume !== undefined && parseFloat(i.volume) > 0)
+  if (hasVolume) {
+    volumeSeries = chart.addSeries(HistogramSeries,{
+      priceFormat: { type: 'volume' },
+      priceScaleId: 'volume',
+    })
+
+    chart.priceScale('volume').applyOptions({
+      scaleMargins: { top: 0.8, bottom: 0 },
+    })
+
+    const volumeData = dedupAndSort(
+      items
+        .map((item, idx) => {
+          const time = parseTime(item.formatted_date || item.date)
+          if (!time) return null
+          const vol = parseFloat(item.volume) || 0
+          const val = parseFloat(item.value) || 0
+          const prevClose = idx > 0 ? parseFloat(items[idx - 1].value) : val
+          return {
+            time,
+            value: vol,
+            color: val >= prevClose
+              ? 'rgba(16, 185, 129, 0.3)'
+              : 'rgba(239, 68, 68, 0.3)',
+          }
+        })
+        .filter(Boolean)
+    )
+
+    volumeSeries.setData(volumeData)
+  }
+
+  // --- Overlay indicators ---
+  overlaySeries = []
   if (props.overlays && props.overlays.length > 0) {
-    console.log('[StockChart] Adding overlays:', props.overlays.length)
     let colorIdx = 0
 
     for (const overlay of props.overlays) {
-      if (!overlay.config || overlay.error) {
-        console.log('[StockChart] Skipping overlay:', overlay.indicator, 'error:', overlay.error)
-        continue
-      }
+      if (!overlay.config || overlay.error) continue
 
-      const outputs = [...(overlay.config.outputs || [])] // Convert from Proxy to plain array
-      console.log('[StockChart] Processing overlay:', overlay.indicator, 'outputs:', outputs)
+      const outputs = [...(overlay.config.outputs || [])]
+      const color = overlayColors[colorIdx % overlayColors.length]
 
       if (overlay.config.fillBetween && outputs.length === 3) {
-        // Bollinger Bands style: upper, middle, lower with fill
-        const color = overlayColors[colorIdx % overlayColors.length]
+        // Bollinger Bands / Keltner Channels: upper, middle, lower with fill
+        const upperData = buildOverlayData(items, overlay.data[outputs[0]])
+        const middleData = buildOverlayData(items, overlay.data[outputs[1]])
+        const lowerData = buildOverlayData(items, overlay.data[outputs[2]])
 
-        datasets.push({
-          label: `${overlay.indicator} Upper`,
-          data: overlay.data[outputs[0]], // upper
-          borderColor: color.border,
-          borderWidth: 1,
-          borderDash: [4, 4],
-          pointRadius: 0,
-          fill: false,
-          order: 5
+        // Upper band (dashed)
+        const upperSeries = chart.addSeries(LineSeries,{
+          color,
+          lineWidth: 1,
+          lineStyle: 2, // Dashed
+          lastValueVisible: false,
+          priceLineVisible: false,
+          crosshairMarkerVisible: false,
         })
+        upperSeries.setData(upperData)
+        overlaySeries.push({ series: upperSeries, label: `${overlay.indicator} Upper` })
 
-        datasets.push({
-          label: `${overlay.indicator} Middle`,
-          data: overlay.data[outputs[1]], // middle
-          borderColor: color.border,
-          borderWidth: 1.5,
-          pointRadius: 0,
-          fill: false,
-          order: 5
+        // Middle band (solid)
+        const middleSeries = chart.addSeries(LineSeries,{
+          color,
+          lineWidth: 1.5,
+          lastValueVisible: false,
+          priceLineVisible: false,
+          crosshairMarkerVisible: false,
         })
+        middleSeries.setData(middleData)
+        overlaySeries.push({ series: middleSeries, label: `${overlay.indicator} Middle` })
 
-        datasets.push({
-          label: `${overlay.indicator} Lower`,
-          data: overlay.data[outputs[2]], // lower
-          borderColor: color.border,
-          borderWidth: 1,
-          borderDash: [4, 4],
-          pointRadius: 0,
-          fill: '-1', // Fill to previous dataset (upper)
-          backgroundColor: color.bg,
-          order: 5
+        // Lower band (dashed, with fill to upper)
+        const lowerSeries = chart.addSeries(LineSeries,{
+          color,
+          lineWidth: 1,
+          lineStyle: 2,
+          lastValueVisible: false,
+          priceLineVisible: false,
+          crosshairMarkerVisible: false,
+          topColor: `${color}20`,
+          bottomColor: 'transparent',
         })
+        lowerSeries.setData(lowerData)
+        overlaySeries.push({ series: lowerSeries, label: `${overlay.indicator} Lower` })
 
+        colorIdx++
+      } else if (overlay.config.hasHistogram && outputs.includes('histogram')) {
+        // MACD-style overlay with histogram
+        for (const outputKey of outputs) {
+          const data = buildOverlayData(items, overlay.data[outputKey])
+          if (data.length === 0) continue
+
+          if (outputKey === 'histogram') {
+            const histSeries = chart.addSeries(HistogramSeries,{
+              lastValueVisible: false,
+              priceLineVisible: false,
+            })
+            const histData = data.map(d => ({
+              ...d,
+              color: d.value >= 0 ? 'rgba(16, 185, 129, 0.5)' : 'rgba(239, 68, 68, 0.5)',
+            }))
+            histSeries.setData(histData)
+            overlaySeries.push({ series: histSeries, label: `${overlay.indicator} Histogram` })
+          } else {
+            const lineSeries = chart.addSeries(LineSeries,{
+              color: outputKey === 'macd' ? color : '#EF4444',
+              lineWidth: 1.5,
+              lastValueVisible: false,
+              priceLineVisible: false,
+              crosshairMarkerVisible: false,
+            })
+            lineSeries.setData(data)
+            overlaySeries.push({ series: lineSeries, label: `${overlay.indicator} ${outputKey}` })
+          }
+        }
         colorIdx++
       } else {
         // Regular line overlay
         for (const outputKey of outputs) {
-          const color = overlayColors[colorIdx % overlayColors.length]
+          const data = buildOverlayData(items, overlay.data[outputKey])
+          if (data.length === 0) continue
 
-          datasets.push({
-            label: `${overlay.indicator} ${outputKey}`,
-            data: overlay.data[outputKey],
-            borderColor: color.border,
-            borderWidth: 1.5,
-            pointRadius: 0,
-            fill: false,
-            order: 5
+          const lineSeries = chart.addSeries(LineSeries,{
+            color,
+            lineWidth: 1.5,
+            lastValueVisible: false,
+            priceLineVisible: false,
+            crosshairMarkerVisible: false,
           })
-
+          lineSeries.setData(data)
+          overlaySeries.push({ series: lineSeries, label: `${overlay.indicator} ${outputKey}` })
           colorIdx++
         }
       }
     }
   }
 
-  console.log('[StockChart] Total datasets:', datasets.length, datasets.map(d => d.label))
+  // --- Crosshair tooltip ---
+  crosshairHandler = (param) => {
+    if (!tooltipRef.value) return
 
-  return {
-    type: 'line',
-    data: {
-      labels,
-      datasets
-    },
-    options: {
-      responsive: true,
-      maintainAspectRatio: false,
-      interaction: {
-        intersect: false,
-        mode: 'index'
-      },
-      plugins: {
-        legend: {
-          display: true,
-          position: 'top',
-          labels: {
-            boxWidth: 12,
-            padding: 8,
-            font: { size: 11, family: 'Inter' }
-          }
-        },
-        tooltip: {
-          backgroundColor: 'rgba(15, 23, 42, 0.9)',
-          titleFont: { size: 11, family: 'Inter' },
-          bodyFont: { size: 11, family: 'Inter', weight: '600' },
-          padding: 10,
-          cornerRadius: 8,
-          callbacks: {
-            label: (context) => {
-              const val = context.parsed.y
-              if (val === null || val === undefined) return ''
-              const label = context.dataset.label || ''
-              if (label === 'Harga') {
-                return `${label}: Rp ${val.toLocaleString('id-ID')}`
-              }
-              return `${label}: ${val.toFixed(2)}`
-            }
-          }
-        }
-      },
-      scales: {
-        y: {
-          min: Math.max(0, minPrice - padding),
-          max: maxPrice + padding,
-          grid: {
-            color: 'rgba(0,0,0,0.04)',
-            drawBorder: false
-          },
-          ticks: {
-            font: { size: 11, family: 'Inter' },
-            color: '#94A3B8',
-            callback: (value) => `Rp ${value ? value.toLocaleString('id-ID') : '0'}`
-          }
-        },
-        x: {
-          grid: { display: false },
-          ticks: {
-            maxTicksLimit: 8,
-            maxRotation: 45,
-            font: { size: 10, family: 'Inter' },
-            color: '#94A3B8'
-          }
-        }
+    if (!param.time || !param.point || param.point.x < 0 || param.point.y < 0) {
+      tooltipRef.value.style.display = 'none'
+      return
+    }
+
+    const dateStr = typeof param.time === 'number'
+      ? new Date(param.time * 1000).toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' })
+      : param.time
+
+    let html = `<div class="tt-date">${dateStr}</div>`
+
+    // Price
+    const priceVal = param.seriesData.get(priceSeries)
+    if (priceVal) {
+      html += `<div class="tt-row"><span class="tt-dot" style="background:#00b4d8"></span>Harga: <b>Rp ${priceVal.value.toLocaleString('id-ID')}</b></div>`
+    }
+
+    // Overlays
+    for (const { series, label } of overlaySeries) {
+      const val = param.seriesData.get(series)
+      if (val && val.value !== undefined && val.value !== null) {
+        html += `<div class="tt-row"><span class="tt-dot" style="background:${series.options().color}"></span>${label}: <b>${val.value.toFixed(2)}</b></div>`
       }
     }
+
+    tooltipRef.value.innerHTML = html
+    tooltipRef.value.style.display = 'block'
+
+    // Position tooltip
+    const containerRect = chartContainer.value.getBoundingClientRect()
+    const x = param.point.x
+    const tooltipWidth = tooltipRef.value.offsetWidth
+    const left = x + 16 + tooltipWidth > containerRect.width
+      ? x - tooltipWidth - 16
+      : x + 16
+
+    tooltipRef.value.style.left = `${left}px`
+    tooltipRef.value.style.top = `${Math.max(0, param.point.y - 20)}px`
+  }
+
+  chart.subscribeCrosshairMove(crosshairHandler)
+
+  // Fit content
+  chart.timeScale().fitContent()
+  console.log('[StockChart] Chart rendered successfully')
+}
+
+// Build overlay data aligned with price items, deduped and sorted
+function buildOverlayData(items, values) {
+  if (!values || !Array.isArray(values)) return []
+
+  return dedupAndSort(
+    items
+      .map((item, i) => {
+        const time = parseTime(item.formatted_date || item.date)
+        if (!time) return null
+        const v = values[i]
+        if (v === null || v === undefined || isNaN(v)) return null
+        return { time, value: v }
+      })
+      .filter(Boolean)
+  )
+}
+
+// Lifecycle
+onMounted(() => {
+  console.log('[StockChart] Mounted, data:', !!props.data, 'stats:', !!stats.value)
+  nextTick(() => {
+    setTimeout(() => {
+      console.log('[StockChart] onMounted -> renderChart')
+      renderChart()
+    }, 100)
+  })
+
+  // Handle container resize
+  if (chartContainer.value) {
+    resizeObserver = new ResizeObserver(() => {
+      if (chart && chartContainer.value) {
+        const rect = chartContainer.value.getBoundingClientRect()
+        if (rect.width > 0 && rect.height > 0) {
+          chart.resize(rect.width, rect.height)
+        }
+      }
+    })
+    resizeObserver.observe(chartContainer.value)
   }
 })
 
-const stats = computed(() => {
-  if (!chartData.value) return null
-  const { prices } = chartData.value
-  if (prices.length === 0) return null
-
-  const validPrices = prices.filter(p => p > 0)
-  if (validPrices.length === 0) return null
-
-  const latest = validPrices[validPrices.length - 1]
-  const first = validPrices[0]
-  const change = latest - first
-  const changePercent = first !== 0 ? ((change / first) * 100).toFixed(2) : '0.00'
-  const high = Math.max(...validPrices)
-  const low = Math.min(...validPrices)
-
-  // Dapatkan previous close dari data Stockbit
-  const previousClose = props.data?.data?.previous || first
-
-  return {
-    latest,
-    first,
-    previousClose,
-    change,
-    changePercent,
-    high,
-    low,
-    isPositive: change >= 0
+onUnmounted(() => {
+  if (resizeObserver) {
+    resizeObserver.disconnect()
+    resizeObserver = null
+  }
+  if (chart) {
+    chart.remove()
+    chart = null
   }
 })
+
+watch(() => [props.data, props.overlays], () => {
+  console.log('[StockChart] Data/overlays changed, stats:', !!stats.value)
+  nextTick(() => {
+    setTimeout(() => {
+      console.log('[StockChart] Watcher -> renderChart')
+      renderChart()
+    }, 100)
+  })
+}, { deep: true })
 </script>
 
 <template>
-  <div class="stock-chart-container" v-if="chartData && lineChartConfig">
+  <div class="stock-chart-container" v-show="stats">
+    <!-- Stats Grid -->
     <div class="stats-grid">
       <div class="stat-card">
         <div class="stat-label">Harga Terakhir</div>
-        <div class="stat-value">Rp {{ stats?.latest?.toLocaleString('id-ID') || '-' }}</div>
+        <div class="stat-value">Rp {{ stats.latest.toLocaleString('id-ID') }}</div>
       </div>
-      <div class="stat-card" :class="stats?.isPositive ? 'positive' : 'negative'">
+      <div class="stat-card" :class="stats.isPositive ? 'positive' : 'negative'">
         <div class="stat-label">Perubahan</div>
         <div class="stat-value">
-          {{ stats?.change >= 0 ? '+' : '' }}{{ stats?.change?.toLocaleString('id-ID') || '-' }}
-          ({{ stats?.changePercent }}%)
+          {{ stats.change >= 0 ? '+' : '' }}{{ stats.change.toLocaleString('id-ID') }}
+          ({{ stats.changePercent }}%)
         </div>
       </div>
       <div class="stat-card">
         <div class="stat-label">Tertinggi</div>
-        <div class="stat-value">Rp {{ stats?.high?.toLocaleString('id-ID') || '-' }}</div>
+        <div class="stat-value">Rp {{ stats.high.toLocaleString('id-ID') }}</div>
       </div>
       <div class="stat-card">
         <div class="stat-label">Terendah</div>
-        <div class="stat-value">Rp {{ stats?.low?.toLocaleString('id-ID') || '-' }}</div>
+        <div class="stat-value">Rp {{ stats.low.toLocaleString('id-ID') }}</div>
       </div>
     </div>
 
+    <!-- Overlay Legend -->
+    <div v-if="overlays && overlays.length > 0" class="overlay-legend">
+      <span v-for="(overlay, i) in overlays" :key="i" class="legend-item">
+        <span class="legend-dot" :style="{ background: overlayColors[i % overlayColors.length] }"></span>
+        {{ overlay.indicator }}
+      </span>
+    </div>
+
+    <!-- Chart -->
     <div class="chart-wrapper">
-      <Line :data="lineChartConfig.data" :options="lineChartConfig.options" />
+      <div ref="chartContainer" class="chart-container"></div>
+      <div ref="tooltipRef" class="chart-tooltip"></div>
     </div>
   </div>
-  <div v-else class="no-data">
+
+  <div v-if="!stats" class="no-data">
     <p>Tidak ada data chart yang bisa divisualisasikan</p>
     <p class="hint">Coba klik tab "Raw JSON" untuk lihat format data asli</p>
-    <p class="hint" v-if="props.data">Data keys: {{ Object.keys(props.data) }}</p>
+    <p class="hint" v-if="data">Data keys: {{ Object.keys(data) }}</p>
   </div>
 </template>
 
@@ -400,12 +532,14 @@ const stats = computed(() => {
 .stock-chart-container {
   margin-top: 20px;
 }
+
 .stats-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
   gap: 15px;
-  margin-bottom: 20px;
+  margin-bottom: 16px;
 }
+
 .stat-card {
   background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
   color: white;
@@ -413,33 +547,117 @@ const stats = computed(() => {
   border-radius: 8px;
   text-align: center;
 }
+
 .stat-card.positive {
   background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%);
 }
+
 .stat-card.negative {
   background: linear-gradient(135deg, #eb3349 0%, #f45c43 100%);
 }
+
 .stat-label {
   font-size: 12px;
   opacity: 0.9;
   margin-bottom: 5px;
 }
+
 .stat-value {
   font-size: 18px;
   font-weight: bold;
 }
-.chart-wrapper {
-  height: 450px;
-  background: white;
-  padding: 20px;
-  border-radius: 8px;
-  box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+
+/* Overlay Legend */
+.overlay-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-bottom: 8px;
+  padding: 0 4px;
 }
+
+.legend-item {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 11px;
+  font-weight: 600;
+  color: #475569;
+}
+
+.legend-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+}
+
+/* Chart */
+.chart-wrapper {
+  position: relative;
+  background: white;
+  border-radius: 8px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  overflow: hidden;
+}
+
+.chart-container {
+  width: 100%;
+  height: 450px;
+}
+
+/* Tooltip */
+.chart-tooltip {
+  display: none;
+  position: absolute;
+  z-index: 10;
+  pointer-events: none;
+  background: rgba(15, 23, 42, 0.92);
+  color: #fff;
+  border-radius: 8px;
+  padding: 10px 14px;
+  font-family: 'Inter', sans-serif;
+  font-size: 11px;
+  line-height: 1.6;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  min-width: 160px;
+  max-width: 280px;
+}
+
+.chart-tooltip .tt-date {
+  font-weight: 700;
+  margin-bottom: 4px;
+  color: #94A3B8;
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.chart-tooltip .tt-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  white-space: nowrap;
+}
+
+.chart-tooltip .tt-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.chart-tooltip b {
+  color: #fff;
+  font-weight: 700;
+}
+
+/* No Data */
 .no-data {
   text-align: center;
   color: #666;
   padding: 40px;
 }
+
 .hint {
   font-size: 14px;
   color: #999;

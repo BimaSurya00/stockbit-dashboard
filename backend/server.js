@@ -714,9 +714,9 @@ app.get('/api/emiten/:symbol/indicators', async (req, res) => {
       });
     }
 
-    // Extract close prices and labels
-    const closePrices = extractClosePrices(chartData.prices);
-    const labels = chartData.prices.map(p => p.formatted_date || p.date);
+    // Extract close prices and aligned labels (same indices)
+    const { closePrices, validIndices } = extractClosePrices(chartData.prices);
+    const labels = validIndices.map(i => chartData.prices[i].formatted_date || chartData.prices[i].date);
 
     if (closePrices.length < 2) {
       return res.status(400).json({ error: 'Data harga tidak cukup untuk analisis' });

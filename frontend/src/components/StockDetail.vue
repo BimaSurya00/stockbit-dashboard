@@ -174,6 +174,7 @@ fetchChart()
           v-if="oscillatorIndicators.length > 0"
           :data="oscillatorIndicators"
           :labels="indicatorData[0]?.data ? chartData?.data?.prices?.map(p => p.formatted_date || p.date) : []"
+          :times="chartData?.data?.prices?.map(p => p.formatted_date || p.date) || []"
         />
 
         <!-- Running Trade di bawah -->
