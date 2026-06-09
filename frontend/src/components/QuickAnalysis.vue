@@ -13,34 +13,79 @@
       </div>
     </div>
 
-    <div class="controls-bar">
-      <select v-model="selectedSymbol" @change="fetchAnalysis" class="select-input">
-        <option value="">Pilih Saham</option>
-        <option v-for="emiten in emitens" :key="emiten.symbol" :value="emiten.symbol">
-          {{ emiten.symbol }} - {{ emiten.name }}
-        </option>
-      </select>
-      <div class="pill-group">
-        <button v-for="tf in timeframes" :key="tf.value"
-          class="pill-item" :class="{ active: selectedTimeframe === tf.value }"
-          @click="selectedTimeframe = tf.value; fetchAnalysis()">{{ tf.label }}</button>
-      </div>
-      <select v-model="selectedPreset" @change="fetchPresetAnalysis" class="select-input">
-        <option value="">Custom (RSI+MACD+BB+Trend)</option>
-        <option value="moving_averages">Moving Averages</option>
-        <option value="bollinger_rsi">Bollinger + RSI</option>
-        <option value="macd_rsi">MACD + RSI</option>
-        <option value="trend_following">Trend Following</option>
-      </select>
+    <!-- Quick Picks -->
+    <div class="quick-picks">
+      <span class="quick-label">Quick:</span>
+      <button v-for="s in popularStocks" :key="s.symbol"
+        class="quick-btn" :class="{ active: selectedSymbol === s.symbol }"
+        @click="selectStock(s.symbol)">
+        {{ s.symbol }}
+      </button>
     </div>
 
+    <!-- Search Input -->
+    <div class="search-section">
+      <div class="search-wrap" ref="searchWrapRef">
+        <svg class="search-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+        <input
+          v-model="searchQuery"
+          @input="onSearch"
+          @focus="showDropdown = true"
+          @keydown.down.prevent="navigateDropdown(1)"
+          @keydown.up.prevent="navigateDropdown(-1)"
+          @keydown.enter.prevent="selectHighlighted"
+          @keydown.escape="showDropdown = false"
+          type="text"
+          placeholder="Ketik symbol atau nama saham (contoh: BBCA, Bank Central Asia)..."
+          class="search-input"
+          autocomplete="off"
+        />
+        <div v-if="selectedSymbol" class="selected-badge" @click="clearSelection">
+          {{ selectedSymbol }} <span class="clear-x">&times;</span>
+        </div>
+      </div>
+
+      <!-- Dropdown -->
+      <div v-if="showDropdown && filteredEmitens.length > 0" class="dropdown">
+        <div class="dropdown-scroll">
+          <div v-for="(emiten, index) in filteredEmitens" :key="emiten.symbol"
+            class="dropdown-item" :class="{ highlighted: index === highlightIndex }"
+            @click="selectStock(emiten.symbol)"
+            @mouseenter="highlightIndex = index">
+            <span class="dd-symbol">{{ emiten.symbol }}</span>
+            <span class="dd-name">{{ emiten.name }}</span>
+            <span class="dd-sector">{{ emiten.sector }}</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Controls -->
+    <div class="controls-bar">
+      <div class="pill-group">
+        <span class="pill-label">Timeframe:</span>
+        <button v-for="tf in timeframes" :key="tf.value"
+          class="pill-item" :class="{ active: selectedTimeframe === tf.value }"
+          @click="selectedTimeframe = tf.value; if(selectedSymbol) fetchAnalysis()">{{ tf.label }}</button>
+      </div>
+      <div class="pill-group">
+        <span class="pill-label">Preset:</span>
+        <button v-for="p in presetOptions" :key="p.value"
+          class="pill-item" :class="{ active: selectedPreset === p.value }"
+          @click="selectedPreset = p.value; if(selectedSymbol) fetchAnalysis()">{{ p.label }}</button>
+      </div>
+    </div>
+
+    <!-- Loading -->
     <div v-if="loading" class="loading-state">
       <div class="spinner"></div>
       <span>Menghitung indikator...</span>
     </div>
 
+    <!-- Error -->
     <div v-else-if="error" class="error-msg">{{ error }}</div>
 
+    <!-- Signals -->
     <div v-else-if="signals" class="signals-grid">
       <div class="bento-card signal-card" :class="rsiClass">
         <div class="signal-header">
@@ -76,14 +121,19 @@
       </div>
     </div>
 
+    <!-- Empty State -->
     <div v-else class="empty-state">
-      <p>Pilih saham untuk melihat analisis cepat</p>
+      <div class="empty-icon">
+        <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+      </div>
+      <p class="empty-title">Pilih saham untuk analisis</p>
+      <p class="empty-desc">Ketik symbol di search atau klik quick picks di atas</p>
     </div>
   </div>
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue'
+import { ref, computed, onMounted, onUnmounted } from 'vue'
 import axios from 'axios'
 
 const API_BASE = ''
@@ -96,6 +146,24 @@ const loading = ref(false)
 const error = ref(null)
 const signals = ref(null)
 
+const searchQuery = ref('')
+const showDropdown = ref(false)
+const highlightIndex = ref(-1)
+const searchWrapRef = ref(null)
+
+const popularStocks = [
+  { symbol: 'BBCA' },
+  { symbol: 'BBRI' },
+  { symbol: 'TLKM' },
+  { symbol: 'BMRI' },
+  { symbol: 'ASII' },
+  { symbol: 'UNVR' },
+  { symbol: 'GOTO' },
+  { symbol: 'BUKA' },
+  { symbol: 'EMTK' },
+  { symbol: 'MAPI' }
+]
+
 const timeframes = [
   { value: '1d', label: '1D' },
   { value: '1w', label: '1W' },
@@ -103,6 +171,14 @@ const timeframes = [
   { value: '3m', label: '3M' },
   { value: 'ytd', label: 'YTD' },
   { value: '1y', label: '1Y' }
+]
+
+const presetOptions = [
+  { value: '', label: 'Default' },
+  { value: 'moving_averages', label: 'MA' },
+  { value: 'bollinger_rsi', label: 'BB+RSI' },
+  { value: 'macd_rsi', label: 'MACD+RSI' },
+  { value: 'trend_following', label: 'Trend' }
 ]
 
 const presets = {
@@ -116,18 +192,61 @@ const rsiValue = ref(0)
 const rsiStatus = ref('')
 const rsiDescription = ref('')
 const rsiClass = ref('')
-
 const macdStatus = ref('')
 const macdDescription = ref('')
 const macdClass = ref('')
-
 const bbStatus = ref('')
 const bbDescription = ref('')
 const bbClass = ref('')
-
 const trendStatus = ref('')
 const trendDescription = ref('')
 const trendClass = ref('')
+
+const filteredEmitens = computed(() => {
+  if (!searchQuery.value) return emitens.value.slice(0, 20)
+  const q = searchQuery.value.toUpperCase()
+  return emitens.value.filter(e =>
+    e.symbol.toUpperCase().includes(q) ||
+    (e.name && e.name.toUpperCase().includes(q))
+  ).slice(0, 20)
+})
+
+function onSearch() {
+  showDropdown.value = true
+  highlightIndex.value = -1
+}
+
+function navigateDropdown(dir) {
+  const len = filteredEmitens.value.length
+  if (len === 0) return
+  highlightIndex.value = (highlightIndex.value + dir + len) % len
+}
+
+function selectHighlighted() {
+  if (highlightIndex.value >= 0 && highlightIndex.value < filteredEmitens.value.length) {
+    selectStock(filteredEmitens.value[highlightIndex.value].symbol)
+  }
+}
+
+function selectStock(symbol) {
+  selectedSymbol.value = symbol
+  searchQuery.value = ''
+  showDropdown.value = false
+  highlightIndex.value = -1
+  fetchAnalysis()
+}
+
+function clearSelection() {
+  selectedSymbol.value = ''
+  searchQuery.value = ''
+  signals.value = null
+}
+
+function handleClickOutside(e) {
+  if (searchWrapRef.value && !searchWrapRef.value.contains(e.target)) {
+    showDropdown.value = false
+  }
+}
 
 async function fetchEmitens() {
   try {
@@ -163,8 +282,6 @@ async function fetchAnalysis() {
   }
 }
 
-async function fetchPresetAnalysis() { await fetchAnalysis() }
-
 function processSignals(indicators) {
   const rsi = indicators.find(i => i.indicator === 'RSI')
   const macd = indicators.find(i => i.indicator === 'MACD')
@@ -177,11 +294,11 @@ function processSignals(indicators) {
     const lastRsi = rsi.data.rsi[rsi.data.rsi.length - 1]
     rsiValue.value = lastRsi ? lastRsi.toFixed(1) : 0
     if (lastRsi > 70) {
-      rsiStatus.value = 'Overbought'; rsiDescription.value = 'RSI di atas 70, kemungkinan akan turun'; rsiClass.value = 'bearish'
+      rsiStatus.value = 'Overbought'; rsiDescription.value = 'RSI > 70, kemungkinan akan turun'; rsiClass.value = 'bearish'
     } else if (lastRsi < 30) {
-      rsiStatus.value = 'Oversold'; rsiDescription.value = 'RSI di bawah 30, kemungkinan akan naik'; rsiClass.value = 'bullish'
+      rsiStatus.value = 'Oversold'; rsiDescription.value = 'RSI < 30, kemungkinan akan naik'; rsiClass.value = 'bullish'
     } else {
-      rsiStatus.value = 'Neutral'; rsiDescription.value = 'RSI antara 30-70, tidak ada signal kuat'; rsiClass.value = 'neutral'
+      rsiStatus.value = 'Neutral'; rsiDescription.value = 'RSI 30-70, tidak ada signal kuat'; rsiClass.value = 'neutral'
     }
   } else {
     rsiStatus.value = '-'; rsiDescription.value = 'RSI tidak tersedia'; rsiClass.value = 'neutral'; rsiValue.value = '-'
@@ -239,7 +356,14 @@ function processSignals(indicators) {
   }
 }
 
-onMounted(() => { fetchEmitens() })
+onMounted(() => {
+  fetchEmitens()
+  document.addEventListener('click', handleClickOutside)
+})
+
+onUnmounted(() => {
+  document.removeEventListener('click', handleClickOutside)
+})
 </script>
 
 <style scoped>
@@ -253,7 +377,7 @@ onMounted(() => { fetchEmitens() })
   --shadow-hover: 0 4px 20px rgba(0,0,0,0.07), 0 1px 4px rgba(0,0,0,0.04);
 }
 
-.page-header { display: flex; justify-content: space-between; align-items: flex-end; margin-bottom: 20px; gap: 16px; flex-wrap: wrap; }
+.page-header { display: flex; justify-content: space-between; align-items: flex-end; margin-bottom: 16px; gap: 16px; flex-wrap: wrap; }
 .page-title { font-family: 'DM Sans', 'Inter', sans-serif; font-size: 28px; font-weight: 800; margin: 0; letter-spacing: -1px; color: var(--text); }
 .page-subtitle { font-size: 14px; color: var(--text2); margin: 2px 0 0; font-weight: 400; }
 .header-right { display: flex; align-items: center; gap: 14px; }
@@ -268,17 +392,61 @@ onMounted(() => { fetchEmitens() })
 .btn-refresh:hover:not(:disabled) { box-shadow: var(--shadow-hover); border-color: rgba(0,0,0,0.1); }
 .btn-refresh:disabled { opacity: 0.5; cursor: not-allowed; }
 
-.controls-bar { display: flex; gap: 12px; margin-bottom: 20px; flex-wrap: wrap; align-items: center; }
-.select-input {
-  height: 38px; padding: 0 14px;
-  background: var(--surface); border: 1px solid var(--border); border-radius: 100px;
-  font-family: 'Inter', sans-serif; font-size: 12px; font-weight: 500; color: var(--text);
-  cursor: pointer; transition: all 0.2s ease; min-width: 160px;
+/* Quick Picks */
+.quick-picks {
+  display: flex; align-items: center; gap: 8px; margin-bottom: 16px; flex-wrap: wrap;
 }
-.select-input:hover { border-color: rgba(0,0,0,0.15); }
-.select-input:focus { outline: none; border-color: var(--blue); box-shadow: 0 0 0 3px rgba(32,91,252,0.1); }
+.quick-label { font-size: 12px; font-weight: 600; color: var(--text3); }
+.quick-btn {
+  height: 32px; padding: 0 12px; border: 1px solid var(--border); border-radius: 100px;
+  background: var(--surface); font-family: 'Inter', sans-serif; font-size: 12px; font-weight: 600;
+  color: var(--text2); cursor: pointer; transition: all 0.2s ease;
+}
+.quick-btn:hover { border-color: var(--blue); color: var(--blue); }
+.quick-btn.active { background: var(--blue); color: white; border-color: var(--blue); }
 
-.pill-group { display: flex; gap: 4px; background: var(--bg); border-radius: 100px; padding: 4px; }
+/* Search */
+.search-section { position: relative; margin-bottom: 16px; }
+.search-wrap {
+  display: flex; align-items: center; gap: 10px;
+  background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-sm);
+  padding: 0 16px; transition: all 0.2s ease;
+}
+.search-wrap:focus-within { border-color: var(--blue); box-shadow: 0 0 0 3px rgba(32,91,252,0.1); }
+.search-icon { color: var(--text3); flex-shrink: 0; }
+.search-input {
+  flex: 1; height: 44px; border: none; background: transparent;
+  font-family: 'Inter', sans-serif; font-size: 14px; color: var(--text);
+  outline: none;
+}
+.search-input::placeholder { color: var(--text3); }
+.selected-badge {
+  display: flex; align-items: center; gap: 6px;
+  padding: 4px 12px; background: rgba(32,91,252,0.07); border-radius: 100px;
+  font-size: 12px; font-weight: 700; color: var(--blue); cursor: pointer;
+}
+.clear-x { font-size: 16px; line-height: 1; }
+
+/* Dropdown */
+.dropdown {
+  position: absolute; top: 100%; left: 0; right: 0; z-index: 100;
+  background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-sm);
+  box-shadow: 0 10px 40px rgba(0,0,0,0.1); margin-top: 4px; overflow: hidden;
+}
+.dropdown-scroll { max-height: 320px; overflow-y: auto; }
+.dropdown-item {
+  display: flex; align-items: center; gap: 12px;
+  padding: 10px 16px; cursor: pointer; transition: background 0.15s ease;
+}
+.dropdown-item:hover, .dropdown-item.highlighted { background: var(--bg); }
+.dd-symbol { font-weight: 700; font-size: 13px; color: var(--text); min-width: 56px; }
+.dd-name { flex: 1; font-size: 13px; color: var(--text2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.dd-sector { font-size: 11px; color: var(--text3); padding: 2px 8px; background: var(--bg); border-radius: 100px; white-space: nowrap; }
+
+/* Controls */
+.controls-bar { display: flex; gap: 16px; margin-bottom: 20px; flex-wrap: wrap; align-items: center; }
+.pill-group { display: flex; gap: 4px; background: var(--bg); border-radius: 100px; padding: 4px; align-items: center; }
+.pill-label { font-size: 11px; font-weight: 600; color: var(--text3); padding: 0 8px; }
 .pill-item {
   padding: 7px 14px; border: none; background: transparent; border-radius: 100px;
   font-family: 'Inter', sans-serif; font-size: 12px; font-weight: 600; color: var(--text2);
@@ -303,9 +471,12 @@ onMounted(() => { fetchEmitens() })
 }
 
 .empty-state {
-  display: flex; align-items: center; justify-content: center;
-  padding: 80px 20px; color: var(--text3); font-size: 14px;
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  padding: 80px 20px; text-align: center;
 }
+.empty-icon { color: var(--text3); margin-bottom: 16px; opacity: 0.5; }
+.empty-title { font-size: 16px; font-weight: 600; color: var(--text); margin: 0 0 8px; }
+.empty-desc { font-size: 14px; color: var(--text3); margin: 0; }
 
 .signals-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 16px; }
 
@@ -342,7 +513,6 @@ onMounted(() => { fetchEmitens() })
 @media (max-width: 768px) {
   .page-header { flex-direction: column; align-items: flex-start; }
   .controls-bar { flex-direction: column; align-items: stretch; }
-  .select-input { min-width: 100%; }
   .pill-group { overflow-x: auto; }
   .signals-grid { grid-template-columns: 1fr; }
 }
