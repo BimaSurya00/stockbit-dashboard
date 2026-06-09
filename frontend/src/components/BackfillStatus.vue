@@ -153,16 +153,52 @@ async function fetchStatus() {
   loading.value = true
   error.value = null
   try {
-    const token = localStorage.getItem('token')
+    const token = localStorage.getItem('session_token')
+    if (!token) {
+      error.value = 'Silakan login terlebih dahulu'
+      return
+    }
     const res = await axios.get(`${API_BASE}/api/admin/backfill-status`, {
       headers: { Authorization: `Bearer ${token}` }
     })
     status.value = res.data
   } catch (err) {
-    error.value = err.response?.data?.error || 'Gagal memuat status'
+    if (err.response?.status === 401) {
+      error.value = 'Token expired, silakan login ulang'
+    } else {
+      error.value = err.response?.data?.error || 'Gagal memuat status'
+    }
   } finally {
     loading.value = false
   }
+}
+
+async function triggerBackfill() {
+  backfilling.value = true
+  backfillMessage.value = ''
+  try {
+    const token = localStorage.getItem('session_token')
+    if (!token) {
+      backfillMessage.value = 'Error: Silakan login terlebih dahulu'
+      return
+    }
+    const res = await axios.post(`${API_BASE}/api/admin/backfill-yahoo`, {}, {
+      headers: { Authorization: `Bearer ${token}` }
+    })
+    backfillMessage.value = `Backfill started untuk ${res.data.total} emiten. Proses berjalan di background (~8 menit).`
+    
+    startAutoRefresh()
+    setTimeout(() => fetchStatus(), 2000)
+  } catch (err) {
+    if (err.response?.status === 401) {
+      backfillMessage.value = 'Error: Token expired, silakan login ulang'
+    } else {
+      backfillMessage.value = `Error: ${err.response?.data?.error || err.message}`
+    }
+  } finally {
+    backfilling.value = false
+  }
+}
 }
 
 async function triggerBackfill() {

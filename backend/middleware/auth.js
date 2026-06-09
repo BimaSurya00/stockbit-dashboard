@@ -2,7 +2,7 @@ const jwt = require('jsonwebtoken');
 const User = require('../models/User');
 
 const JWT_SECRET = process.env.JWT_SECRET || 'stockbit-dashboard-secret-change-me';
-const JWT_EXPIRES = '7d';
+const JWT_EXPIRES = process.env.JWT_EXPIRES || '30d';
 
 function generateToken(user) {
   return jwt.sign(

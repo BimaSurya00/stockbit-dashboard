@@ -7,12 +7,15 @@ const state = reactive({
   ready: false
 })
 
+let refreshInterval = null
+
 function setSession(token, user) {
   state.token = token
   state.user = user
   state.ready = true
   localStorage.setItem('session_token', token)
   axios.defaults.headers.common['Authorization'] = `Bearer ${token}`
+  startTokenRefresh()
 }
 
 function clearSession() {
@@ -21,6 +24,32 @@ function clearSession() {
   state.ready = true
   localStorage.removeItem('session_token')
   delete axios.defaults.headers.common['Authorization']
+  stopTokenRefresh()
+}
+
+function startTokenRefresh() {
+  stopTokenRefresh()
+  // Refresh token setiap 6 hari (sebelum expire 30 hari)
+  refreshInterval = setInterval(async () => {
+    try {
+      const res = await axios.post('/api/auth/refresh')
+      if (res.data.success) {
+        state.token = res.data.token
+        localStorage.setItem('session_token', res.data.token)
+        axios.defaults.headers.common['Authorization'] = `Bearer ${res.data.token}`
+        console.log('[Auth] Token refreshed automatically')
+      }
+    } catch (err) {
+      console.warn('[Auth] Auto-refresh failed:', err.message)
+    }
+  }, 6 * 24 * 60 * 60 * 1000) // 6 hari
+}
+
+function stopTokenRefresh() {
+  if (refreshInterval) {
+    clearInterval(refreshInterval)
+    refreshInterval = null
+  }
 }
 
 function initAuth() {
@@ -32,6 +61,7 @@ function initAuth() {
       .then(res => {
         state.user = res.data.user
         state.ready = true
+        startTokenRefresh()
         return true
       })
       .catch(() => {

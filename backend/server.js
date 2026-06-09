@@ -214,6 +214,24 @@ app.get('/api/auth/me', authMiddleware, (req, res) => {
   res.json({ user: req.user });
 });
 
+app.post('/api/auth/refresh', authMiddleware, (req, res) => {
+  try {
+    const { generateToken } = require('./middleware/auth');
+    const newToken = generateToken(req.user);
+    res.json({ 
+      success: true, 
+      token: newToken,
+      user: {
+        id: req.user._id,
+        username: req.user.username,
+        role: req.user.role
+      }
+    });
+  } catch (err) {
+    res.status(500).json({ error: 'Gagal refresh token', detail: err.message });
+  }
+});
+
 // === STOCKBIT TOKEN MANAGEMENT (admin only) ===
 
 app.put('/api/admin/token', authMiddleware, adminMiddleware, async (req, res) => {
