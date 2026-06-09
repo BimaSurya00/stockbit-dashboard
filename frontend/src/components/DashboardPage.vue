@@ -15,6 +15,7 @@ import FinancialReports from './FinancialReports.vue'
 import QuickAnalysis from './QuickAnalysis.vue'
 import BrokerFlow from './BrokerFlow.vue'
 import VolumeAnalysis from './VolumeAnalysis.vue'
+import BackfillStatus from './BackfillStatus.vue'
 
 const router = useRouter()
 
@@ -81,6 +82,7 @@ const menuSections = [
     label: 'ADMIN',
     items: [
       { key: 'users', label: 'Manage Users', icon: 'profile' },
+      { key: 'backfill', label: 'Backfill Status', icon: 'activity' },
     ]
   }
 ]
@@ -420,6 +422,11 @@ function toggleSidebar() {
         <!-- Manage Users (admin only) -->
         <div v-if="activeTab === 'users'">
           <UserManagement />
+        </div>
+
+        <!-- Backfill Status (admin only) -->
+        <div v-if="activeTab === 'backfill'">
+          <BackfillStatus />
         </div>
 
         <!-- Error -->
