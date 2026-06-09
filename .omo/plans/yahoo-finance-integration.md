@@ -126,6 +126,7 @@ Parallel Speedup: ~50% faster than sequential
 Max Concurrent: 3 (Wave 1)
 ```
 
+
 ### Dependency Matrix
 
 | Task | Depends On | Blocks |

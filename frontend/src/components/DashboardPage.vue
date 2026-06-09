@@ -14,6 +14,7 @@ import WorkerMonitor from './WorkerMonitor.vue'
 import FinancialReports from './FinancialReports.vue'
 import QuickAnalysis from './QuickAnalysis.vue'
 import BrokerFlow from './BrokerFlow.vue'
+import VolumeAnalysis from './VolumeAnalysis.vue'
 
 const router = useRouter()
 
@@ -71,6 +72,7 @@ const menuSections = [
     label: 'TOOLS',
     items: [
       { key: 'analysis', label: 'Quick Analysis', icon: 'chart' },
+      { key: 'volume', label: 'Volume Analysis', icon: 'activity' },
       { key: 'token', label: 'Token Status', icon: 'token' },
       { key: 'workers', label: 'Worker Monitor', icon: 'activity' },
     ]
@@ -332,6 +334,11 @@ function toggleSidebar() {
         <!-- Quick Analysis -->
         <div v-if="activeTab === 'analysis'">
           <QuickAnalysis />
+        </div>
+
+        <!-- Volume Analysis -->
+        <div v-if="activeTab === 'volume'">
+          <VolumeAnalysis />
         </div>
 
         <!-- Token Status -->
