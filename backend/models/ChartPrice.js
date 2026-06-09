@@ -17,7 +17,10 @@ const chartPriceSchema = new mongoose.Schema({
     value: String,
     change: Number,
     percentage: Number,
-    volume: Number  // Optional - untuk volume analysis (backward compatible)
+    volume: Number,
+    open: Number,
+    high: Number,
+    low: Number
   }],
   previous: Number,
   metadata: {

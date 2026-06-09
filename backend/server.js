@@ -18,6 +18,9 @@ const { seedEmiten } = require('./seeds/emitenSeed');
 const { seedAdmin } = require('./seeds/adminSeed');
 const { generateToken, authMiddleware, adminMiddleware, JWT_SECRET } = require('./middleware/auth');
 
+// Yahoo Finance
+const { fetchVolumeForSymbol } = require('./lib/yahoo-finance');
+
 // Connect to MongoDB
 connectDB();
 
@@ -772,12 +775,12 @@ app.get('/api/chart/:symbol', checkTokenMiddleware, async (req, res) => {
       timestamp: Date.now()
     });
 
-    // Also save to ChartPrice collection for technical indicators
     if (chartData?.data?.prices && chartData.data.prices.length > 0) {
       const latestPrice = chartData.data.prices[chartData.data.prices.length - 1];
       
-      // Map prices untuk include volume data
-      const pricesWithVolume = chartData.data.prices.map(p => ({
+      const hasVolume = chartData.data.prices.some(p => p.volume && parseFloat(p.volume) > 0);
+      
+      let pricesWithVolume = chartData.data.prices.map(p => ({
         date: p.date,
         formatted_date: p.formatted_date,
         value: p.value,
@@ -785,6 +788,30 @@ app.get('/api/chart/:symbol', checkTokenMiddleware, async (req, res) => {
         percentage: p.percentage,
         volume: p.volume ? parseFloat(p.volume) : undefined
       }));
+
+      if (!hasVolume) {
+        try {
+          const yahooData = await fetchVolumeForSymbol(symbol, 365);
+          
+          if (Object.keys(yahooData).length > 0) {
+            pricesWithVolume = pricesWithVolume.map(p => {
+              const dateKey = p.formatted_date || p.date;
+              if (yahooData[dateKey]) {
+                return {
+                  ...p,
+                  volume: yahooData[dateKey].volume,
+                  open: yahooData[dateKey].open,
+                  high: yahooData[dateKey].high,
+                  low: yahooData[dateKey].low
+                };
+              }
+              return p;
+            });
+          }
+        } catch (yahooErr) {
+          console.warn(`[YAHOO] Gagal fetch volume untuk ${symbol}:`, yahooErr.message);
+        }
+      }
 
       ChartPrice.findOneAndUpdate(
         { symbol: symbol.toUpperCase(), timeframe },
