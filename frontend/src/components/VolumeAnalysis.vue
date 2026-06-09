@@ -58,14 +58,10 @@
       </div>
     </div>
 
-    <!-- Controls -->
-    <div class="controls-bar">
-      <div class="pill-group">
-        <span class="pill-label">Timeframe:</span>
-        <button v-for="tf in timeframes" :key="tf.value"
-          class="pill-item" :class="{ active: selectedTimeframe === tf.value }"
-          @click="selectedTimeframe = tf.value; if(selectedSymbol) fetchAnalysis()">{{ tf.label }}</button>
-      </div>
+    <!-- Info -->
+    <div class="info-bar">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
+      <span>Data volume menggunakan timeframe 1 Tahun dari Yahoo Finance</span>
     </div>
 
     <!-- Loading -->
@@ -176,7 +172,6 @@ const API_BASE = ''
 
 const emitens = ref([])
 const selectedSymbol = ref('')
-const selectedTimeframe = ref('1y')
 const loading = ref(false)
 const error = ref(null)
 const analysis = ref(null)
@@ -197,13 +192,6 @@ const popularStocks = [
   { symbol: 'BUKA' },
   { symbol: 'EMTK' },
   { symbol: 'MAPI' }
-]
-
-const timeframes = [
-  { value: '1m', label: '1M' },
-  { value: '3m', label: '3M' },
-  { value: 'ytd', label: 'YTD' },
-  { value: '1y', label: '1Y' }
 ]
 
 // Computed
@@ -340,7 +328,7 @@ async function fetchAnalysis() {
   error.value = null
   try {
     const res = await axios.get(`${API_BASE}/api/emiten/${selectedSymbol.value}/volume-analysis`, {
-      params: { timeframe: selectedTimeframe.value }
+      params: { timeframe: '1y' }
     })
     // Restructure data for easier access in computed properties
     const apiData = res.data
@@ -458,6 +446,14 @@ onUnmounted(() => {
 }
 .pill-item:hover { color: var(--text); }
 .pill-item.active { background: var(--surface); color: var(--text); box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
+
+.info-bar {
+  display: flex; align-items: center; gap: 8px;
+  padding: 10px 16px; background: rgba(32,91,252,0.04); border: 1px solid rgba(32,91,252,0.1);
+  border-radius: var(--radius-sm); margin-bottom: 20px;
+  font-size: 12px; color: var(--text2);
+}
+.info-bar svg { color: var(--blue); flex-shrink: 0; }
 
 .loading-state {
   display: flex; align-items: center; justify-content: center; gap: 12px;

@@ -1123,10 +1123,19 @@ app.get('/api/emiten/:symbol/volume-analysis', async (req, res) => {
     const { symbol } = req.params;
     const { timeframe = '1y', lookback = 20, threshold = 2.0 } = req.query;
 
-    const chartData = await ChartPrice.findOne({
+    let chartData = await ChartPrice.findOne({
       symbol: symbol.toUpperCase(),
       timeframe
     }).lean();
+
+    // Fallback ke 1y jika timeframe yang diminta tidak punya volume data
+    if (!chartData || !chartData.prices || chartData.prices.length === 0 || 
+        !chartData.prices.some(p => p.volume && p.volume > 0)) {
+      chartData = await ChartPrice.findOne({
+        symbol: symbol.toUpperCase(),
+        timeframe: '1y'
+      }).lean();
+    }
 
     if (!chartData || !chartData.prices || chartData.prices.length === 0) {
       return res.status(404).json({
@@ -1167,7 +1176,7 @@ app.get('/api/emiten/:symbol/volume-analysis', async (req, res) => {
 
     res.json({
       symbol: symbol.toUpperCase(),
-      timeframe,
+      timeframe: chartData.timeframe, // Return actual timeframe used
       analysis: {
         lookbackPeriod,
         spikeThreshold,
