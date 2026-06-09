@@ -5,7 +5,7 @@
  * Each indicator specifies its category, parameters, output format,
  * and whether it renders as an overlay on the main chart or in a separate panel.
  */
-
+// test
 const INDICATORS = {
   // ==================== OVERLAY STUDIES ====================
   SMA: {
