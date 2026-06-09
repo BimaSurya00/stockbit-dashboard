@@ -251,13 +251,17 @@ const todayVolumeDesc = computed(() => {
 })
 
 const spikeCount = computed(() => {
-  if (!analysis.value?.analysis?.spikeCount) return 0
-  return analysis.value.analysis.spikeCount
+  const count = analysis.value?.analysis?.spikeCount
+  console.log('[VolumeAnalysis] spikeCount computed:', count, 'analysis.value:', analysis.value)
+  if (!count) return 0
+  return count
 })
 
 const spikes = computed(() => {
-  if (!analysis.value?.analysis?.spikes) return []
-  return analysis.value.analysis.spikes
+  const s = analysis.value?.analysis?.spikes
+  console.log('[VolumeAnalysis] spikes computed:', s?.length, 'analysis.value?.analysis:', analysis.value?.analysis)
+  if (!s) return []
+  return s
 })
 
 const obvTrendLabel = computed(() => {
@@ -347,8 +351,12 @@ async function fetchAnalysis() {
     const res = await axios.get(`${API_BASE}/api/emiten/${selectedSymbol.value}/volume-analysis`, {
       params: { timeframe: selectedTimeframe.value }
     })
+    console.log('[VolumeAnalysis] API response:', res.data)
+    console.log('[VolumeAnalysis] spikes:', res.data?.analysis?.spikes?.length)
     analysis.value = res.data
+    console.log('[VolumeAnalysis] analysis.value set:', analysis.value)
   } catch (err) {
+    console.error('[VolumeAnalysis] Error:', err)
     error.value = err.response?.data?.error || 'Gagal mengambil data volume'
   } finally {
     loading.value = false
