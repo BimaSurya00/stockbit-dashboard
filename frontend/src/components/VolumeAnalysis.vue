@@ -78,16 +78,16 @@
     <div v-else-if="error" class="error-msg">{{ error }}</div>
 
     <!-- Results -->
-    <div v-else-if="analysis" class="content-area">
+    <div v-else-if="analysis && analysis.spikes" class="content-area">
       <!-- Summary Cards -->
       <div class="summary-grid">
         <div class="bento-card summary-card">
           <div class="card-header">
             <h3 class="card-title">Rata-rata Volume</h3>
-            <span class="badge blue">20 Hari</span>
+            <span class="badge blue">{{ analysis.lookbackPeriod }} Hari</span>
           </div>
-          <div class="summary-value">{{ formatVolume(avgVolume) }}</div>
-          <div class="summary-desc">Volume rata-rata 20 hari terakhir</div>
+          <div class="summary-value">{{ formatVolume(analysis.averageVolume) }}</div>
+          <div class="summary-desc">Volume rata-rata {{ analysis.lookbackPeriod }} hari terakhir</div>
         </div>
 
         <div class="bento-card summary-card">
@@ -105,7 +105,7 @@
             <span class="badge red">{{ spikeCount }}</span>
           </div>
           <div class="summary-value">{{ spikeCount }} spike</div>
-          <div class="summary-desc">Deteksi volume > 2x rata-rata</div>
+          <div class="summary-desc">Deteksi volume > {{ analysis.spikeThreshold }}x rata-rata</div>
         </div>
 
         <div class="bento-card summary-card">
@@ -217,13 +217,11 @@ const filteredEmitens = computed(() => {
 })
 
 const avgVolume = computed(() => {
-  if (!analysis.value?.analysis?.averageVolume) return 0
-  return analysis.value.analysis.averageVolume
+  return analysis.value?.averageVolume || 0
 })
 
 const todayVolume = computed(() => {
-  if (!analysis.value?.analysis?.spikes) return 0
-  const spikes = analysis.value.analysis.spikes
+  const spikes = analysis.value?.spikes || []
   if (spikes.length === 0) return 0
   return spikes[0]?.volume || 0
 })
@@ -251,22 +249,15 @@ const todayVolumeDesc = computed(() => {
 })
 
 const spikeCount = computed(() => {
-  const count = analysis.value?.analysis?.spikeCount
-  console.log('[VolumeAnalysis] spikeCount computed:', count, 'analysis.value:', analysis.value)
-  if (!count) return 0
-  return count
+  return analysis.value?.spikeCount || 0
 })
 
 const spikes = computed(() => {
-  const s = analysis.value?.analysis?.spikes
-  console.log('[VolumeAnalysis] spikes computed:', s?.length, 'analysis.value?.analysis:', analysis.value?.analysis)
-  if (!s) return []
-  return s
+  return analysis.value?.spikes || []
 })
 
 const obvTrendLabel = computed(() => {
-  if (!analysis.value?.analysis?.spikes) return '-'
-  const spikes = analysis.value.analysis.spikes
+  const spikes = analysis.value?.spikes || []
   if (spikes.length < 2) return 'Netral'
   const recent = spikes.slice(0, 5)
   const upCount = recent.filter(s => s.priceChange > 0).length
@@ -351,12 +342,19 @@ async function fetchAnalysis() {
     const res = await axios.get(`${API_BASE}/api/emiten/${selectedSymbol.value}/volume-analysis`, {
       params: { timeframe: selectedTimeframe.value }
     })
-    console.log('[VolumeAnalysis] API response:', res.data)
-    console.log('[VolumeAnalysis] spikes:', res.data?.analysis?.spikes?.length)
-    analysis.value = res.data
-    console.log('[VolumeAnalysis] analysis.value set:', analysis.value)
+    // Restructure data for easier access in computed properties
+    const apiData = res.data
+    analysis.value = {
+      symbol: apiData.symbol,
+      timeframe: apiData.timeframe,
+      averageVolume: apiData.analysis?.averageVolume || 0,
+      spikeCount: apiData.analysis?.spikeCount || 0,
+      spikes: apiData.analysis?.spikes || [],
+      lookbackPeriod: apiData.analysis?.lookbackPeriod || 20,
+      spikeThreshold: apiData.analysis?.spikeThreshold || 2,
+      totalDataPoints: apiData.analysis?.totalDataPoints || 0
+    }
   } catch (err) {
-    console.error('[VolumeAnalysis] Error:', err)
     error.value = err.response?.data?.error || 'Gagal mengambil data volume'
   } finally {
     loading.value = false
