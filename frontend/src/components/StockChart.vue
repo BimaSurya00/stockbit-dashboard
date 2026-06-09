@@ -1,6 +1,6 @@
 <script setup>
 import { ref, computed, onMounted, onUnmounted, watch, nextTick } from 'vue'
-import { createChart, LineSeries, HistogramSeries } from 'lightweight-charts'
+import { createChart, LineSeries, HistogramSeries, CandlestickSeries } from 'lightweight-charts'
 
 const props = defineProps({
   data: Object,
@@ -9,6 +9,7 @@ const props = defineProps({
 
 const chartContainer = ref(null)
 const tooltipRef = ref(null)
+const chartType = ref('line') // 'line' or 'candlestick'
 let chart = null
 let priceSeries = null
 let volumeSeries = null
@@ -100,6 +101,27 @@ function parseItem(item) {
   if (!time) return null
 
   return { time, value }
+}
+
+// Parse a price item to OHLC candlestick data
+function parseCandleItem(item, prevItem) {
+  const time = parseTime(item.formatted_date || item.date)
+  if (!time) return null
+
+  const close = parseFloat(item.value)
+  if (isNaN(close) || close <= 0) return null
+
+  const open = item.open ? parseFloat(item.open) : (prevItem ? parseFloat(prevItem.value) : close)
+  const high = item.high ? parseFloat(item.high) : Math.max(open, close)
+  const low = item.low ? parseFloat(item.low) : Math.min(open, close)
+
+  return {
+    time,
+    open: isNaN(open) ? close : open,
+    high: isNaN(high) ? Math.max(open, close) : high,
+    low: isNaN(low) ? Math.min(open, close) : low,
+    close
+  }
 }
 
 // Deduplicate by time (keep last value per timestamp) and sort ascending
@@ -207,25 +229,41 @@ function renderChart() {
     handleScroll: { vertTouchDrag: true },
   })
 
-  // --- Price line series ---
-  priceSeries = chart.addSeries(LineSeries,{
-    color: '#00b4d8',
-    lineWidth: 2,
-    crosshairMarkerVisible: true,
-    crosshairMarkerRadius: 4,
-    crosshairMarkerBackgroundColor: '#00b4d8',
-    crosshairMarkerBorderColor: '#fff',
-    crosshairMarkerBorderWidth: 2,
-    lastValueVisible: true,
-    priceLineVisible: true,
-  })
+  // --- Price series (line or candlestick) ---
+  if (chartType.value === 'candlestick') {
+    priceSeries = chart.addSeries(CandlestickSeries, {
+      upColor: '#10B981',
+      downColor: '#EF4444',
+      borderDownColor: '#EF4444',
+      borderUpColor: '#10B981',
+      wickDownColor: '#EF4444',
+      wickUpColor: '#10B981',
+    })
 
-  const priceData = dedupAndSort(
-    items.map(parseItem).filter(Boolean)
-  )
+    const candleData = dedupAndSort(
+      items.map((item, idx) => parseCandleItem(item, idx > 0 ? items[idx - 1] : null)).filter(Boolean)
+    )
+    priceSeries.setData(candleData)
+    console.log('[StockChart] Candlestick data set:', candleData.length, 'points')
+  } else {
+    priceSeries = chart.addSeries(LineSeries, {
+      color: '#00b4d8',
+      lineWidth: 2,
+      crosshairMarkerVisible: true,
+      crosshairMarkerRadius: 4,
+      crosshairMarkerBackgroundColor: '#00b4d8',
+      crosshairMarkerBorderColor: '#fff',
+      crosshairMarkerBorderWidth: 2,
+      lastValueVisible: true,
+      priceLineVisible: true,
+    })
 
-  priceSeries.setData(priceData)
-  console.log('[StockChart] Price data set:', priceData.length, 'points')
+    const priceData = dedupAndSort(
+      items.map(parseItem).filter(Boolean)
+    )
+    priceSeries.setData(priceData)
+    console.log('[StockChart] Line data set:', priceData.length, 'points')
+  }
 
   // --- Volume histogram series ---
   const hasVolume = items.some(i => i.volume !== undefined && parseFloat(i.volume) > 0)
@@ -479,6 +517,15 @@ watch(() => [props.data, props.overlays], () => {
     }, 100)
   })
 }, { deep: true })
+
+watch(chartType, () => {
+  console.log('[StockChart] Chart type changed to:', chartType.value)
+  nextTick(() => {
+    setTimeout(() => {
+      renderChart()
+    }, 100)
+  })
+})
 </script>
 
 <template>
@@ -504,6 +551,18 @@ watch(() => [props.data, props.overlays], () => {
         <div class="stat-label">Terendah</div>
         <div class="stat-value">Rp {{ stats.low.toLocaleString('id-ID') }}</div>
       </div>
+    </div>
+
+    <!-- Chart Type Toggle -->
+    <div class="chart-toggle">
+      <button class="toggle-btn" :class="{ active: chartType === 'line' }" @click="chartType = 'line'">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+        Line
+      </button>
+      <button class="toggle-btn" :class="{ active: chartType === 'candlestick' }" @click="chartType = 'candlestick'">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="8" y="6" width="8" height="12" rx="1"/><line x1="12" y1="2" x2="12" y2="6"/><line x1="12" y1="18" x2="12" y2="22"/></svg>
+        Candle
+      </button>
     </div>
 
     <!-- Overlay Legend -->
@@ -565,6 +624,43 @@ watch(() => [props.data, props.overlays], () => {
 .stat-value {
   font-size: 18px;
   font-weight: bold;
+}
+
+/* Chart Type Toggle */
+.chart-toggle {
+  display: flex;
+  gap: 4px;
+  margin-bottom: 12px;
+  background: #F1F5F9;
+  border-radius: 8px;
+  padding: 4px;
+  width: fit-content;
+}
+
+.toggle-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  border: none;
+  background: transparent;
+  border-radius: 6px;
+  font-family: 'Inter', sans-serif;
+  font-size: 12px;
+  font-weight: 600;
+  color: #64748B;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.toggle-btn:hover {
+  color: #0F172A;
+}
+
+.toggle-btn.active {
+  background: white;
+  color: #0F172A;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.1);
 }
 
 /* Overlay Legend */
