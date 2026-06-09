@@ -1189,6 +1189,7 @@ app.post('/api/admin/backfill-yahoo', authMiddleware, adminMiddleware, async (re
     (async () => {
       let successCount = 0;
       let failCount = 0;
+      let processedCount = 0;
 
       for (let i = 0; i < emitens.length; i++) {
         const emiten = emitens[i];
@@ -1202,6 +1203,7 @@ app.post('/api/admin/backfill-yahoo', authMiddleware, adminMiddleware, async (re
             const hasVolume = chartPrice.prices.some(p => p.volume && p.volume > 0);
             if (hasVolume) {
               successCount++;
+              processedCount++;
               continue;
             }
 
@@ -1228,16 +1230,48 @@ app.post('/api/admin/backfill-yahoo', authMiddleware, adminMiddleware, async (re
           failCount++;
         }
 
+        processedCount++;
+        
+        // Log progress setiap 50 saham
+        if (processedCount % 50 === 0) {
+          console.log(`[YAHOO BACKFILL] Progress: ${processedCount}/${emitens.length} (${successCount} berhasil, ${failCount} gagal)`);
+        }
+
         // Rate limiting
         await new Promise(resolve => setTimeout(resolve, 500));
       }
 
-      console.log(`[YAHOO BACKFILL] Selesai: ${successCount} berhasil, ${failCount} gagal`);
+      console.log(`[YAHOO BACKFILL] Selesai: ${successCount} berhasil, ${failCount} gagal dari ${emitens.length} emiten`);
     })();
 
   } catch (error) {
     console.error('Error backfill:', error.message);
     res.status(500).json({ error: 'Gagal start backfill', detail: error.message });
+  }
+});
+
+// --- Check Backfill Status ---
+app.get('/api/admin/backfill-status', authMiddleware, adminMiddleware, async (req, res) => {
+  try {
+    const totalEmiten = await Emiten.countDocuments({ isActive: true });
+    const emitensWithVolume = await ChartPrice.aggregate([
+      { $match: { timeframe: '1y' } },
+      { $unwind: '$prices' },
+      { $match: { 'prices.volume': { $gt: 0 } } },
+      { $group: { _id: '$symbol' } },
+      { $count: 'total' }
+    ]);
+
+    const withVolume = emitensWithVolume[0]?.total || 0;
+
+    res.json({
+      totalEmiten,
+      withVolume,
+      withoutVolume: totalEmiten - withVolume,
+      percentComplete: Math.round((withVolume / totalEmiten) * 100)
+    });
+  } catch (error) {
+    res.status(500).json({ error: 'Gagal cek status' });
   }
 });
 
