@@ -12,6 +12,8 @@ import StockbitDashboard from './StockbitDashboard.vue'
 import UserManagement from './UserManagement.vue'
 import WorkerMonitor from './WorkerMonitor.vue'
 import FinancialReports from './FinancialReports.vue'
+import QuickAnalysis from './QuickAnalysis.vue'
+import BrokerFlow from './BrokerFlow.vue'
 
 const router = useRouter()
 
@@ -61,12 +63,14 @@ const menuSections = [
     items: [
       { key: 'emiten', label: 'Daftar Emiten', icon: 'list' },
       { key: 'broker', label: 'Top Broker', icon: 'broker' },
+      { key: 'broker-flow', label: 'Broker Flow', icon: 'activity' },
       { key: 'financial', label: 'Laporan Keuangan', icon: 'file-text' },
     ]
   },
   {
     label: 'TOOLS',
     items: [
+      { key: 'analysis', label: 'Quick Analysis', icon: 'chart' },
       { key: 'token', label: 'Token Status', icon: 'token' },
       { key: 'workers', label: 'Worker Monitor', icon: 'activity' },
     ]
@@ -318,6 +322,16 @@ function toggleSidebar() {
         <!-- Top Broker -->
         <div v-if="activeTab === 'broker'">
           <BrokerTop />
+        </div>
+
+        <!-- Broker Flow -->
+        <div v-if="activeTab === 'broker-flow'">
+          <BrokerFlow />
+        </div>
+
+        <!-- Quick Analysis -->
+        <div v-if="activeTab === 'analysis'">
+          <QuickAnalysis />
         </div>
 
         <!-- Token Status -->

@@ -205,7 +205,21 @@ const INDICATORS = {
     note: 'Menggunakan close price sebagai high/low approximation',
   },
 
-  // ==================== VOLUME-BASED (partial) ====================
+  // ==================== VOLUME-BASED ====================
+  VOLUME_MA: {
+    name: 'Volume Moving Average',
+    category: 'overlay',
+    description: 'Rata-rata volume dalam periode tertentu',
+    fn: 'VOLUME_MA',
+    params: [
+      { key: 'period', label: 'Period', default: 20, min: 2, max: 500 }
+    ],
+    outputs: ['volume_ma'],
+    overlay: true,
+    inputType: 'volume',
+    requiresVolume: true,
+    note: 'Overlay pada volume histogram',
+  },
   OBV: {
     name: 'On Balance Volume',
     category: 'oscillator',

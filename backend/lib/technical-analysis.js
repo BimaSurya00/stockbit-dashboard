@@ -25,9 +25,10 @@ function approximateHighLow(closePrices) {
  * @param {number[]} closePrices - Array of close prices
  * @param {string} indicatorKey - Indicator key from registry (e.g., 'SMA', 'RSI')
  * @param {Object} params - Parameters to override defaults
+ * @param {number[]} volumeData - Array of volume data (optional, for volume-based indicators)
  * @returns {Object} - { indicator, params, data, config }
  */
-function calculate(closePrices, indicatorKey, params = {}) {
+function calculate(closePrices, indicatorKey, params = {}, volumeData = null) {
   const config = getIndicator(indicatorKey);
   if (!config) {
     throw new Error(`Unknown indicator: ${indicatorKey}`);
@@ -56,6 +57,17 @@ function calculate(closePrices, indicatorKey, params = {}) {
   if (config.inputType === 'close') {
     // Simple close-price indicators (SMA, EMA, RSI, MACD, etc.)
     input.values = closePrices;
+    if (config.requiresVolume && volumeData && volumeData.length > 0) {
+      input.volume = volumeData;
+    } else if (config.requiresVolume) {
+      throw new Error(`Volume data required for ${indicatorKey}`);
+    }
+  } else if (config.inputType === 'volume') {
+    // Volume-based indicators (VOLUME_MA, etc.)
+    if (!volumeData || volumeData.length === 0) {
+      throw new Error(`Volume data required for ${indicatorKey}`);
+    }
+    input.values = volumeData;
   } else if (config.inputType === 'highlow' || config.requiresHL) {
     // Indicators that need high/low/close (PSAR, etc.)
     const { high, low } = approximateHighLow(closePrices);
@@ -154,12 +166,13 @@ function calculate(closePrices, indicatorKey, params = {}) {
  *
  * @param {number[]} closePrices - Array of close prices
  * @param {Array} indicators - Array of { key, params } objects
+ * @param {number[]} volumeData - Array of volume data (optional)
  * @returns {Array} - Array of indicator results
  */
-function calculateMultiple(closePrices, indicators) {
+function calculateMultiple(closePrices, indicators, volumeData = null) {
   return indicators.map(({ key, params }) => {
     try {
-      return calculate(closePrices, key, params);
+      return calculate(closePrices, key, params, volumeData);
     } catch (err) {
       return {
         indicator: key,
@@ -194,6 +207,26 @@ function extractClosePrices(prices) {
 }
 
 /**
+ * Extract volume data from ChartPrice.prices array
+ * Returns aligned volume data and the validIndices used to filter.
+ *
+ * @param {Array} prices - Array from ChartPrice document
+ * @returns {{ volumeData: number[], validIndices: number[] }}
+ */
+function extractVolumeData(prices) {
+  const volumeData = [];
+  const validIndices = [];
+  prices.forEach((p, i) => {
+    const v = p.volume ? parseFloat(p.volume) : undefined;
+    if (v !== undefined && !isNaN(v) && v > 0) {
+      volumeData.push(v);
+      validIndices.push(i);
+    }
+  });
+  return { volumeData, validIndices };
+}
+
+/**
  * Format indicators response for API
  *
  * @param {Array} results - Array from calculateMultiple
@@ -220,6 +253,7 @@ module.exports = {
   calculate,
   calculateMultiple,
   extractClosePrices,
+  extractVolumeData,
   formatResponse,
   approximateHighLow,
 };

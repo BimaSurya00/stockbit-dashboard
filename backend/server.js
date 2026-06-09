@@ -666,7 +666,7 @@ app.get('/api/prices/:symbol', async (req, res) => {
 
 // --- Technical Analysis: List available indicators ---
 const { getIndicatorList, getIndicatorsByCategory, parseIndicatorString } = require('./lib/indicator-registry');
-const { calculateMultiple, extractClosePrices, formatResponse } = require('./lib/technical-analysis');
+const { calculateMultiple, extractClosePrices, extractVolumeData, formatResponse } = require('./lib/technical-analysis');
 
 app.get('/api/indicators', (req, res) => {
   try {
@@ -722,8 +722,11 @@ app.get('/api/emiten/:symbol/indicators', async (req, res) => {
       return res.status(400).json({ error: 'Data harga tidak cukup untuk analisis' });
     }
 
-    // Calculate indicators
-    const results = calculateMultiple(closePrices, requested);
+    // Extract volume data for volume-based indicators
+    const { volumeData } = extractVolumeData(chartData.prices);
+
+    // Calculate indicators (pass volume data for volume-based indicators)
+    const results = calculateMultiple(closePrices, requested, volumeData);
 
     // Format response
     const response = formatResponse(results, closePrices, labels);
@@ -772,12 +775,23 @@ app.get('/api/chart/:symbol', checkTokenMiddleware, async (req, res) => {
     // Also save to ChartPrice collection for technical indicators
     if (chartData?.data?.prices && chartData.data.prices.length > 0) {
       const latestPrice = chartData.data.prices[chartData.data.prices.length - 1];
+      
+      // Map prices untuk include volume data
+      const pricesWithVolume = chartData.data.prices.map(p => ({
+        date: p.date,
+        formatted_date: p.formatted_date,
+        value: p.value,
+        change: p.change,
+        percentage: p.percentage,
+        volume: p.volume ? parseFloat(p.volume) : undefined
+      }));
+
       ChartPrice.findOneAndUpdate(
         { symbol: symbol.toUpperCase(), timeframe },
         {
           symbol: symbol.toUpperCase(),
           timeframe,
-          prices: chartData.data.prices,
+          prices: pricesWithVolume,
           previous: chartData.data.previous || 0,
           metadata: {
             lastPrice: latestPrice ? parseFloat(latestPrice.value) || 0 : 0,
@@ -1026,6 +1040,101 @@ app.get('/api/running-trade/:symbol', checkTokenMiddleware, async (req, res) => 
       return res.status(status).json({ error: 'Stockbit API error', detail: error.response.data });
     }
     res.status(500).json({ error: 'Gagal mengambil data running trade', detail: error.message });
+  }
+});
+
+// --- Broker History (Historical Flow Data) ---
+app.get('/api/broker/history', async (req, res) => {
+  try {
+    const { days = 30, group } = req.query;
+    const BrokerSnapshot = require('./models/BrokerSnapshot');
+
+    const startDate = new Date();
+    startDate.setDate(startDate.getDate() - parseInt(days) || 30);
+    startDate.setHours(0, 0, 0, 0);
+
+    const query = { date: { $gte: startDate } };
+    if (group && ['foreign', 'local', 'government'].includes(group)) {
+      query.group = group;
+    }
+
+    const snapshots = await BrokerSnapshot.find(query)
+      .sort({ date: -1, group: 1 })
+      .lean();
+
+    res.json({
+      period: `${days} days`,
+      data: snapshots
+    });
+  } catch (error) {
+    console.error('Error fetching broker history:', error.message);
+    res.status(500).json({ error: 'Gagal mengambil data broker history', detail: error.message });
+  }
+});
+
+// --- Volume Spike Detection ---
+app.get('/api/emiten/:symbol/volume-analysis', async (req, res) => {
+  try {
+    const { symbol } = req.params;
+    const { timeframe = '1y', lookback = 20, threshold = 2.0 } = req.query;
+
+    const chartData = await ChartPrice.findOne({
+      symbol: symbol.toUpperCase(),
+      timeframe
+    }).lean();
+
+    if (!chartData || !chartData.prices || chartData.prices.length === 0) {
+      return res.status(404).json({
+        error: 'Data tidak ditemukan',
+        detail: `Tidak ada data untuk ${symbol} dengan timeframe ${timeframe}`
+      });
+    }
+
+    const prices = chartData.prices;
+    const lookbackPeriod = parseInt(lookback) || 20;
+    const spikeThreshold = parseFloat(threshold) || 2.0;
+
+    const volumes = prices.map(p => p.volume ? parseFloat(p.volume) : 0);
+    const spikes = [];
+
+    for (let i = lookbackPeriod; i < prices.length; i++) {
+      const slice = volumes.slice(i - lookbackPeriod, i);
+      const avgVolume = slice.reduce((a, b) => a + b, 0) / slice.length;
+
+      if (avgVolume > 0 && volumes[i] > avgVolume * spikeThreshold) {
+        const prevPrice = i > 0 ? parseFloat(prices[i - 1].value) : null;
+        const currPrice = parseFloat(prices[i].value);
+        const priceChange = prevPrice ? ((currPrice - prevPrice) / prevPrice * 100) : null;
+
+        spikes.push({
+          date: prices[i].date,
+          formatted_date: prices[i].formatted_date,
+          volume: volumes[i],
+          averageVolume: Math.round(avgVolume),
+          spikeRatio: parseFloat((volumes[i] / avgVolume).toFixed(2)),
+          price: currPrice,
+          priceChange: priceChange ? parseFloat(priceChange.toFixed(2)) : null
+        });
+      }
+    }
+
+    const avgVolumeAll = volumes.reduce((a, b) => a + b, 0) / volumes.length;
+
+    res.json({
+      symbol: symbol.toUpperCase(),
+      timeframe,
+      analysis: {
+        lookbackPeriod,
+        spikeThreshold,
+        totalDataPoints: prices.length,
+        averageVolume: Math.round(avgVolumeAll),
+        spikeCount: spikes.length,
+        spikes
+      }
+    });
+  } catch (error) {
+    console.error('Error volume analysis:', error.message);
+    res.status(500).json({ error: 'Gagal analisis volume', detail: error.message });
   }
 });
 
