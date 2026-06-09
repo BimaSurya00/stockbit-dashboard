@@ -199,29 +199,6 @@ async function triggerBackfill() {
     backfilling.value = false
   }
 }
-}
-
-async function triggerBackfill() {
-  backfilling.value = true
-  backfillMessage.value = ''
-  try {
-    const token = localStorage.getItem('token')
-    const res = await axios.post(`${API_BASE}/api/admin/backfill-yahoo`, {}, {
-      headers: { Authorization: `Bearer ${token}` }
-    })
-    backfillMessage.value = `Backfill started untuk ${res.data.total} emiten. Proses berjalan di background (~8 menit).`
-    
-    // Start auto-refresh
-    startAutoRefresh()
-    
-    // Refresh status after 2 seconds
-    setTimeout(() => fetchStatus(), 2000)
-  } catch (err) {
-    backfillMessage.value = `Error: ${err.response?.data?.error || err.message}`
-  } finally {
-    backfilling.value = false
-  }
-}
 
 function startAutoRefresh() {
   if (autoRefreshInterval.value) clearInterval(autoRefreshInterval.value)
