@@ -1171,6 +1171,76 @@ app.post('/api/clear-cache', (req, res) => {
   res.json({ success: true, message: 'Cache cleared' });
 });
 
+// --- Trigger Yahoo Finance Backfill (Admin Only) ---
+app.post('/api/admin/backfill-yahoo', authMiddleware, adminMiddleware, async (req, res) => {
+  try {
+    const { fetchVolumeForSymbol } = require('./lib/yahoo-finance');
+    const Emiten = require('./models/Emiten');
+
+    const emitens = await Emiten.find({ isActive: true }).select('symbol name').lean();
+    
+    res.json({ 
+      success: true, 
+      message: `Backfill started for ${emitens.length} emitens`,
+      total: emitens.length
+    });
+
+    // Run backfill in background
+    (async () => {
+      let successCount = 0;
+      let failCount = 0;
+
+      for (let i = 0; i < emitens.length; i++) {
+        const emiten = emitens[i];
+        try {
+          const chartPrice = await ChartPrice.findOne({
+            symbol: emiten.symbol,
+            timeframe: '1y'
+          });
+
+          if (chartPrice && chartPrice.prices) {
+            const hasVolume = chartPrice.prices.some(p => p.volume && p.volume > 0);
+            if (hasVolume) {
+              successCount++;
+              continue;
+            }
+
+            const volumeData = await fetchVolumeForSymbol(emiten.symbol, 365);
+
+            if (Object.keys(volumeData).length > 0) {
+              chartPrice.prices.forEach(p => {
+                const dateKey = p.formatted_date || p.date;
+                if (volumeData[dateKey]) {
+                  p.volume = volumeData[dateKey].volume;
+                  p.open = volumeData[dateKey].open;
+                  p.high = volumeData[dateKey].high;
+                  p.low = volumeData[dateKey].low;
+                }
+              });
+
+              await chartPrice.save();
+              successCount++;
+            } else {
+              failCount++;
+            }
+          }
+        } catch (err) {
+          failCount++;
+        }
+
+        // Rate limiting
+        await new Promise(resolve => setTimeout(resolve, 500));
+      }
+
+      console.log(`[YAHOO BACKFILL] Selesai: ${successCount} berhasil, ${failCount} gagal`);
+    })();
+
+  } catch (error) {
+    console.error('Error backfill:', error.message);
+    res.status(500).json({ error: 'Gagal start backfill', detail: error.message });
+  }
+});
+
 async function startup() {
   await seedAdmin();
   await loadTokenFromDB();
