@@ -1221,22 +1221,40 @@ app.post('/api/admin/backfill-yahoo', authMiddleware, adminMiddleware, async (re
       for (let i = 0; i < emitens.length; i++) {
         const emiten = emitens[i];
         try {
-          const chartPrice = await ChartPrice.findOne({
+          let chartPrice = await ChartPrice.findOne({
             symbol: emiten.symbol,
             timeframe: '1y'
           });
 
-          if (chartPrice && chartPrice.prices) {
-            const hasVolume = chartPrice.prices.some(p => p.volume && p.volume > 0);
-            if (hasVolume) {
-              successCount++;
-              processedCount++;
-              continue;
-            }
+          // Skip jika sudah ada volume
+          if (chartPrice && chartPrice.prices && chartPrice.prices.some(p => p.volume && p.volume > 0)) {
+            successCount++;
+            processedCount++;
+            continue;
+          }
 
-            const volumeData = await fetchVolumeForSymbol(emiten.symbol, 365);
+          // Fetch volume dari Yahoo
+          const volumeData = await fetchVolumeForSymbol(emiten.symbol, 365);
 
-            if (Object.keys(volumeData).length > 0) {
+          if (Object.keys(volumeData).length > 0) {
+            // Jika ChartPrice belum ada, buat baru
+            if (!chartPrice) {
+              chartPrice = new ChartPrice({
+                symbol: emiten.symbol,
+                timeframe: '1y',
+                prices: Object.entries(volumeData).map(([date, data]) => ({
+                  date: date,
+                  formatted_date: date,
+                  value: '0',  // Harga tidak tersedia dari Yahoo
+                  volume: data.volume,
+                  open: data.open,
+                  high: data.high,
+                  low: data.low
+                })),
+                updatedAt: new Date()
+              });
+            } else {
+              // Update existing prices dengan volume
               chartPrice.prices.forEach(p => {
                 const dateKey = p.formatted_date || p.date;
                 if (volumeData[dateKey]) {
@@ -1246,12 +1264,12 @@ app.post('/api/admin/backfill-yahoo', authMiddleware, adminMiddleware, async (re
                   p.low = volumeData[dateKey].low;
                 }
               });
-
-              await chartPrice.save();
-              successCount++;
-            } else {
-              failCount++;
             }
+
+            await chartPrice.save();
+            successCount++;
+          } else {
+            failCount++;
           }
         } catch (err) {
           failCount++;
