@@ -16,6 +16,7 @@ import QuickAnalysis from './QuickAnalysis.vue'
 import BrokerFlow from './BrokerFlow.vue'
 import VolumeAnalysis from './VolumeAnalysis.vue'
 import BackfillStatus from './BackfillStatus.vue'
+import NewsView from './NewsView.vue'
 
 const router = useRouter()
 
@@ -67,6 +68,7 @@ const menuSections = [
       { key: 'broker', label: 'Top Broker', icon: 'broker' },
       { key: 'broker-flow', label: 'Broker Flow', icon: 'activity' },
       { key: 'financial', label: 'Laporan Keuangan', icon: 'file-text' },
+      { key: 'news', label: 'Berita', icon: 'file-text' },
     ]
   },
   {
@@ -417,6 +419,11 @@ function toggleSidebar() {
         <!-- Financial Reports -->
         <div v-if="activeTab === 'financial'">
           <FinancialReports />
+        </div>
+
+        <!-- News -->
+        <div v-if="activeTab === 'news'">
+          <NewsView />
         </div>
 
         <!-- Manage Users (admin only) -->
