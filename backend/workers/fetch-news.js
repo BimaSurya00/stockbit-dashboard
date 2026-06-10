@@ -2,11 +2,30 @@ require('dotenv').config({ path: require('path').join(__dirname, '..', '.env') }
 const mongoose = require('mongoose');
 const axios = require('axios');
 const News = require('../models/News');
+const WorkerJob = require('../models/WorkerJob');
 
 const MONGODB_URI = process.env.MONGODB_URI || 'mongodb://localhost:27017/stockbit_dashboard';
 const STOCKBIT_BASE = 'https://exodus.stockbit.com';
 
 let token = process.env.STOCKBIT_TOKEN || null;
+
+async function updateStatus(status, message, errorMessage = null) {
+  try {
+    await WorkerJob.findOneAndUpdate(
+      { worker: 'news' },
+      {
+        worker: 'news',
+        status,
+        message: message || '',
+        errorMessage: errorMessage || undefined,
+        updatedAt: new Date()
+      },
+      { upsert: true, new: true }
+    );
+  } catch (err) {
+    console.error('[WORKER STATUS] Failed to update:', err.message);
+  }
+}
 
 async function loadTokenFromDB() {
   const Config = require('../models/Config');
@@ -113,13 +132,16 @@ async function main() {
 
     if (!token) {
       console.error('[ERROR] Stockbit token tidak ditemukan!');
+      await updateStatus('error', 'Token tidak ditemukan');
       process.exit(1);
     }
+
+    await updateStatus('running', 'Fetching news dari Stockbit...');
 
     let cursor = 0;
     let totalSaved = 0;
     let pageCount = 0;
-    const maxPages = 5; // Fetch max 5 pages (100 news)
+    const maxPages = 5;
 
     while (pageCount < maxPages) {
       console.log(`[FETCH] Page ${pageCount + 1}, cursor: ${cursor}`);
@@ -136,6 +158,7 @@ async function main() {
       pageCount++;
 
       console.log(`[SAVED] ${saved} news items`);
+      await updateStatus('running', `Page ${pageCount}: ${totalSaved} news tersimpan`);
 
       if (data.data.pagination?.is_last_page) {
         console.log('[INFO] Last page reached');
@@ -148,7 +171,6 @@ async function main() {
         break;
       }
 
-      // Rate limiting
       await delay(500);
     }
 
@@ -158,11 +180,13 @@ async function main() {
     console.log(`Total pages: ${pageCount}`);
     console.log(`Total saved: ${totalSaved}`);
 
+    await updateStatus('idle', `${totalSaved} news tersimpan`);
     await mongoose.disconnect();
     console.log('\n[DB] Disconnected');
 
   } catch (error) {
     console.error('[FATAL ERROR]:', error.message);
+    await updateStatus('error', error.message);
     await mongoose.disconnect();
     process.exit(1);
   }

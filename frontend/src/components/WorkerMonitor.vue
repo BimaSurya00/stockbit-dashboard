@@ -28,13 +28,16 @@
               <circle cx="12" cy="12" r="10"/>
               <polyline points="12 6 12 12 16 14"/>
             </svg>
+            <svg v-else-if="worker.worker === 'news'" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M19 20H5a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2v1m2 13a2 2 0 0 1-2-2V7m2 13a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-2m-4-3H9M7 16h6M7 8h6v4H7V8z"/>
+            </svg>
             <svg v-else width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
               <path d="M21.21 15.89A10 10 0 1 1 8 2.83"/>
               <path d="M22 12A10 10 0 0 0 12 2v10z"/>
             </svg>
           </div>
           <div class="worker-info">
-            <h3 class="worker-name">{{ worker.worker === 'snapshot' ? 'Snapshot Worker' : 'Price Worker' }}</h3>
+            <h3 class="worker-name">{{ worker.worker === 'snapshot' ? 'Snapshot Worker' : worker.worker === 'news' ? 'News Worker' : 'Price Worker' }}</h3>
             <span class="worker-status" :class="`badge-${worker.status}`">
               {{ worker.status.toUpperCase() }}
             </span>

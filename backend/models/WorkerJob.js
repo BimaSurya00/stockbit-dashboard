@@ -3,7 +3,7 @@ const mongoose = require('mongoose');
 const WorkerJobSchema = new mongoose.Schema({
   worker: {
     type: String,
-    enum: ['snapshot', 'price'],
+    enum: ['snapshot', 'price', 'news'],
     required: true,
     unique: true
   },
