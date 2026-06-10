@@ -10,8 +10,11 @@
           <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21.5 2v6h-6M2.5 22v-6h6M2 11.5a10 10 0 0 1 18.8-4.3M22 12.5a10 10 0 0 1-18.8 4.2"/></svg>
           {{ loading ? 'Loading...' : 'Refresh' }}
         </button>
-        <button class="btn-primary" @click="triggerBackfill" :disabled="backfilling">
+        <button v-if="!backfillRunning" class="btn-primary" @click="triggerBackfill" :disabled="backfilling">
           {{ backfilling ? 'Starting...' : 'Start Backfill' }}
+        </button>
+        <button v-else class="btn-danger" @click="cancelBackfill">
+          Cancel Backfill
         </button>
       </div>
     </div>
@@ -35,7 +38,31 @@
         </div>
         <div class="progress-labels">
           <span>{{ status.withVolume }} dari {{ status.totalEmiten }} saham sudah ada volume</span>
-          <span v-if="status.percentComplete < 100" class="auto-refresh-label">Auto-refresh setiap 5 detik</span>
+          <span v-if="backfillRunning" class="auto-refresh-label">Auto-refresh setiap 5 detik</span>
+        </div>
+        
+        <!-- Backfill Details (saat berjalan) -->
+        <div v-if="status.backfill && status.backfill.isRunning" class="backfill-details">
+          <div class="detail-row">
+            <span class="detail-label">Status:</span>
+            <span class="detail-value running">Berjalan</span>
+          </div>
+          <div class="detail-row">
+            <span class="detail-label">Processed:</span>
+            <span class="detail-value">{{ status.backfill.processedCount }} / {{ status.backfill.totalCount }}</span>
+          </div>
+          <div class="detail-row">
+            <span class="detail-label">Berhasil:</span>
+            <span class="detail-value green">{{ status.backfill.successCount }}</span>
+          </div>
+          <div class="detail-row">
+            <span class="detail-label">Gagal:</span>
+            <span class="detail-value red">{{ status.backfill.failCount }}</span>
+          </div>
+          <div class="detail-row">
+            <span class="detail-label">Mulai:</span>
+            <span class="detail-value">{{ formatTime(status.backfill.startTime) }}</span>
+          </div>
         </div>
       </div>
 
@@ -114,6 +141,10 @@ const backfillMessage = ref('')
 const autoRefreshInterval = ref(null)
 
 // Computed
+const backfillRunning = computed(() => {
+  return status.value?.backfill?.isRunning || false
+})
+
 const progressClass = computed(() => {
   if (!status.value) return ''
   if (status.value.percentComplete >= 100) return 'complete'
@@ -190,7 +221,9 @@ async function triggerBackfill() {
     startAutoRefresh()
     setTimeout(() => fetchStatus(), 2000)
   } catch (err) {
-    if (err.response?.status === 401) {
+    if (err.response?.status === 409) {
+      backfillMessage.value = 'Backfill sedang berjalan, tidak bisa start baru'
+    } else if (err.response?.status === 401) {
       backfillMessage.value = 'Error: Token expired, silakan login ulang'
     } else {
       backfillMessage.value = `Error: ${err.response?.data?.error || err.message}`
@@ -200,12 +233,27 @@ async function triggerBackfill() {
   }
 }
 
+async function cancelBackfill() {
+  try {
+    const token = localStorage.getItem('session_token')
+    if (!token) return
+    
+    await axios.post(`${API_BASE}/api/admin/backfill-cancel`, {}, {
+      headers: { Authorization: `Bearer ${token}` }
+    })
+    backfillMessage.value = 'Backfill dibatalkan'
+    fetchStatus()
+  } catch (err) {
+    backfillMessage.value = `Error: ${err.response?.data?.error || err.message}`
+  }
+}
+
 function startAutoRefresh() {
   if (autoRefreshInterval.value) clearInterval(autoRefreshInterval.value)
   autoRefreshInterval.value = setInterval(() => {
     fetchStatus()
-    // Stop auto-refresh if complete
-    if (status.value?.percentComplete >= 100) {
+    // Stop auto-refresh if backfill not running
+    if (!backfillRunning.value) {
       clearInterval(autoRefreshInterval.value)
       autoRefreshInterval.value = null
     }
@@ -217,6 +265,12 @@ function stopAutoRefresh() {
     clearInterval(autoRefreshInterval.value)
     autoRefreshInterval.value = null
   }
+}
+
+function formatTime(dateStr) {
+  if (!dateStr) return '-'
+  const date = new Date(dateStr)
+  return date.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit', second: '2-digit' })
 }
 
 onMounted(() => {
@@ -263,6 +317,15 @@ onUnmounted(() => {
 }
 .btn-primary:hover:not(:disabled) { background: #1a4fd4; }
 .btn-primary:disabled { opacity: 0.5; cursor: not-allowed; }
+
+.btn-danger {
+  display: inline-flex; align-items: center; gap: 8px;
+  height: 38px; padding: 0 20px;
+  background: var(--red); color: white; border: none; border-radius: 100px;
+  font-family: 'Inter', sans-serif; font-size: 12px; font-weight: 600;
+  cursor: pointer; transition: all 0.2s ease;
+}
+.btn-danger:hover { background: #dc2626; }
 
 .loading-state {
   display: flex; align-items: center; justify-content: center; gap: 12px;
@@ -323,6 +386,19 @@ onUnmounted(() => {
 .auto-refresh-label {
   color: var(--blue); font-weight: 500;
 }
+
+.backfill-details {
+  margin-top: 20px; padding-top: 16px; border-top: 1px solid var(--border);
+}
+.detail-row {
+  display: flex; justify-content: space-between; align-items: center;
+  padding: 6px 0; font-size: 13px;
+}
+.detail-label { color: var(--text2); }
+.detail-value { font-weight: 600; color: var(--text); }
+.detail-value.running { color: var(--blue); }
+.detail-value.green { color: var(--green); }
+.detail-value.red { color: var(--red); }
 
 /* Summary Grid */
 .summary-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 16px; }

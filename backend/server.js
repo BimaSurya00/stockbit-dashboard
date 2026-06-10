@@ -1198,13 +1198,47 @@ app.post('/api/clear-cache', (req, res) => {
   res.json({ success: true, message: 'Cache cleared' });
 });
 
+// --- Backfill State ---
+let backfillState = {
+  isRunning: false,
+  startTime: null,
+  processedCount: 0,
+  successCount: 0,
+  failCount: 0,
+  totalCount: 0,
+  lastUpdate: null
+};
+
 // --- Trigger Yahoo Finance Backfill (Admin Only) ---
 app.post('/api/admin/backfill-yahoo', authMiddleware, adminMiddleware, async (req, res) => {
   try {
+    // Cek apakah backfill sudah berjalan
+    if (backfillState.isRunning) {
+      return res.status(409).json({ 
+        error: 'Backfill sedang berjalan',
+        progress: {
+          processed: backfillState.processedCount,
+          total: backfillState.totalCount,
+          percent: Math.round((backfillState.processedCount / backfillState.totalCount) * 100)
+        }
+      });
+    }
+
     const { fetchVolumeForSymbol } = require('./lib/yahoo-finance');
     const Emiten = require('./models/Emiten');
 
     const emitens = await Emiten.find({ isActive: true }).select('symbol name').lean();
+    
+    // Set backfill state
+    backfillState = {
+      isRunning: true,
+      startTime: new Date(),
+      processedCount: 0,
+      successCount: 0,
+      failCount: 0,
+      totalCount: emitens.length,
+      lastUpdate: new Date()
+    };
     
     res.json({ 
       success: true, 
@@ -1214,11 +1248,13 @@ app.post('/api/admin/backfill-yahoo', authMiddleware, adminMiddleware, async (re
 
     // Run backfill in background
     (async () => {
-      let successCount = 0;
-      let failCount = 0;
-      let processedCount = 0;
-
       for (let i = 0; i < emitens.length; i++) {
+        // Cek jika backfill di-cancel
+        if (!backfillState.isRunning) {
+          console.log('[YAHOO BACKFILL] Dibatalkan oleh user');
+          break;
+        }
+
         const emiten = emitens[i];
         try {
           let chartPrice = await ChartPrice.findOne({
@@ -1228,13 +1264,30 @@ app.post('/api/admin/backfill-yahoo', authMiddleware, adminMiddleware, async (re
 
           // Skip jika sudah ada volume
           if (chartPrice && chartPrice.prices && chartPrice.prices.some(p => p.volume && p.volume > 0)) {
-            successCount++;
-            processedCount++;
+            backfillState.successCount++;
+            backfillState.processedCount++;
+            backfillState.lastUpdate = new Date();
             continue;
           }
 
-          // Fetch volume dari Yahoo
-          const volumeData = await fetchVolumeForSymbol(emiten.symbol, 365);
+          // Fetch volume dari Yahoo dengan retry
+          let volumeData = {};
+          let retryCount = 0;
+          const maxRetries = 3;
+
+          while (retryCount < maxRetries) {
+            try {
+              volumeData = await fetchVolumeForSymbol(emiten.symbol, 365);
+              break;
+            } catch (err) {
+              retryCount++;
+              if (retryCount >= maxRetries) {
+                throw err;
+              }
+              // Wait before retry (exponential backoff)
+              await new Promise(resolve => setTimeout(resolve, 1000 * retryCount));
+            }
+          }
 
           if (Object.keys(volumeData).length > 0) {
             // Jika ChartPrice belum ada, buat baru
@@ -1245,7 +1298,7 @@ app.post('/api/admin/backfill-yahoo', authMiddleware, adminMiddleware, async (re
                 prices: Object.entries(volumeData).map(([date, data]) => ({
                   date: date,
                   formatted_date: date,
-                  value: '0',  // Harga tidak tersedia dari Yahoo
+                  value: '0',
                   volume: data.volume,
                   open: data.open,
                   high: data.high,
@@ -1267,32 +1320,55 @@ app.post('/api/admin/backfill-yahoo', authMiddleware, adminMiddleware, async (re
             }
 
             await chartPrice.save();
-            successCount++;
+            backfillState.successCount++;
           } else {
-            failCount++;
+            backfillState.failCount++;
           }
         } catch (err) {
-          failCount++;
+          backfillState.failCount++;
+          console.error(`[YAHOO BACKFILL] Error ${emiten.symbol}:`, err.message);
         }
 
-        processedCount++;
+        backfillState.processedCount++;
+        backfillState.lastUpdate = new Date();
         
         // Log progress setiap 50 saham
-        if (processedCount % 50 === 0) {
-          console.log(`[YAHOO BACKFILL] Progress: ${processedCount}/${emitens.length} (${successCount} berhasil, ${failCount} gagal)`);
+        if (backfillState.processedCount % 50 === 0) {
+          console.log(`[YAHOO BACKFILL] Progress: ${backfillState.processedCount}/${emitens.length} (${backfillState.successCount} berhasil, ${backfillState.failCount} gagal)`);
         }
 
         // Rate limiting
         await new Promise(resolve => setTimeout(resolve, 500));
       }
 
-      console.log(`[YAHOO BACKFILL] Selesai: ${successCount} berhasil, ${failCount} gagal dari ${emitens.length} emiten`);
+      // Mark as complete
+      backfillState.isRunning = false;
+      console.log(`[YAHOO BACKFILL] Selesai: ${backfillState.successCount} berhasil, ${backfillState.failCount} gagal dari ${emitens.length} emiten`);
     })();
 
   } catch (error) {
+    backfillState.isRunning = false;
     console.error('Error backfill:', error.message);
     res.status(500).json({ error: 'Gagal start backfill', detail: error.message });
   }
+});
+
+// --- Cancel Backfill ---
+app.post('/api/admin/backfill-cancel', authMiddleware, adminMiddleware, async (req, res) => {
+  if (!backfillState.isRunning) {
+    return res.json({ success: true, message: 'Tidak ada backfill yang berjalan' });
+  }
+  
+  backfillState.isRunning = false;
+  res.json({ 
+    success: true, 
+    message: 'Backfill dibatalkan',
+    progress: {
+      processed: backfillState.processedCount,
+      success: backfillState.successCount,
+      fail: backfillState.failCount
+    }
+  });
 });
 
 // --- Check Backfill Status ---
@@ -1313,7 +1389,16 @@ app.get('/api/admin/backfill-status', authMiddleware, adminMiddleware, async (re
       totalEmiten,
       withVolume,
       withoutVolume: totalEmiten - withVolume,
-      percentComplete: Math.round((withVolume / totalEmiten) * 100)
+      percentComplete: Math.round((withVolume / totalEmiten) * 100),
+      backfill: {
+        isRunning: backfillState.isRunning,
+        startTime: backfillState.startTime,
+        processedCount: backfillState.processedCount,
+        successCount: backfillState.successCount,
+        failCount: backfillState.failCount,
+        totalCount: backfillState.totalCount,
+        lastUpdate: backfillState.lastUpdate
+      }
     });
   } catch (error) {
     res.status(500).json({ error: 'Gagal cek status' });
