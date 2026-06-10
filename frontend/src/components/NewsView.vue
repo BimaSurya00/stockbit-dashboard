@@ -13,17 +13,6 @@
       </div>
     </div>
 
-    <!-- Filters -->
-    <div class="filters-bar">
-      <div class="filter-group">
-        <span class="filter-label">Sumber:</span>
-        <div class="pill-group">
-          <button class="pill-item" :class="{ active: !selectedSource }" @click="selectedSource = null; fetchNews()">Semua</button>
-          <button v-for="s in sources" :key="s" class="pill-item" :class="{ active: selectedSource === s }" @click="selectedSource = s; fetchNews()">{{ s }}</button>
-        </div>
-      </div>
-    </div>
-
     <!-- Loading -->
     <div v-if="loading && newsList.length === 0" class="loading-state">
       <div class="spinner"></div>
@@ -112,7 +101,7 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted } from 'vue'
+import { ref, onMounted } from 'vue'
 import axios from 'axios'
 
 const API_BASE = ''
@@ -121,15 +110,9 @@ const newsList = ref([])
 const loading = ref(false)
 const loadingMore = ref(false)
 const error = ref(null)
-const selectedSource = ref(null)
 const selectedNews = ref(null)
 const cursor = ref(0)
 const hasMore = ref(true)
-
-const sources = computed(() => {
-  const unique = new Set(newsList.value.map(n => n.news_feed?.label || n.news_feed?.source).filter(Boolean))
-  return Array.from(unique).slice(0, 10)
-})
 
 function getExcerpt(content) {
   if (!content) return ''
@@ -143,12 +126,7 @@ async function fetchNews() {
   hasMore.value = true
 
   try {
-    const params = { limit: 20 }
-    if (selectedSource.value) {
-      params.source = selectedSource.value
-    }
-
-    const res = await axios.get(`${API_BASE}/api/news`, { params })
+    const res = await axios.get(`${API_BASE}/api/news`, { params: { limit: 20 } })
     newsList.value = res.data?.data?.stream || []
     cursor.value = res.data?.data?.pagination?.next_cursor || 0
     hasMore.value = !res.data?.data?.pagination?.is_last_page
@@ -165,12 +143,7 @@ async function loadMore() {
   loadingMore.value = true
 
   try {
-    const params = { limit: 20, cursor: cursor.value }
-    if (selectedSource.value) {
-      params.source = selectedSource.value
-    }
-
-    const res = await axios.get(`${API_BASE}/api/news`, { params })
+    const res = await axios.get(`${API_BASE}/api/news`, { params: { limit: 20, cursor: cursor.value } })
     const newItems = res.data?.data?.stream || []
     newsList.value.push(...newItems)
     cursor.value = res.data?.data?.pagination?.next_cursor || 0
@@ -222,17 +195,7 @@ onMounted(() => {
 .btn-refresh:disabled { opacity: 0.5; cursor: not-allowed; }
 
 /* Filters */
-.filters-bar { display: flex; gap: 16px; margin-bottom: 20px; flex-wrap: wrap; align-items: center; }
-.filter-group { display: flex; align-items: center; gap: 8px; }
-.filter-label { font-size: 12px; font-weight: 600; color: var(--text3); }
-.pill-group { display: flex; gap: 4px; background: var(--bg); border-radius: 100px; padding: 4px; }
-.pill-item {
-  padding: 7px 14px; border: none; background: transparent; border-radius: 100px;
-  font-family: 'Inter', sans-serif; font-size: 12px; font-weight: 600; color: var(--text2);
-  cursor: pointer; transition: all 0.2s ease; white-space: nowrap;
-}
-.pill-item:hover { color: var(--text); }
-.pill-item.active { background: var(--surface); color: var(--text); box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
+.filters-bar { display: none; }
 
 .loading-state {
   display: flex; align-items: center; justify-content: center; gap: 12px;
