@@ -1511,6 +1511,22 @@ app.get('/api/news/:streamId', async (req, res) => {
   }
 });
 
+// --- Research Endpoint (Stockbit Snips) ---
+app.get('/api/research', async (req, res) => {
+  try {
+    const { keyword = '' } = req.query;
+    const client = getStockbitClient();
+    const params = {};
+    if (keyword) params.keyword = keyword;
+
+    const response = await client.get('/research', { params });
+    res.json(response.data);
+  } catch (error) {
+    console.error('Error fetching research:', error.message);
+    res.status(500).json({ error: 'Gagal mengambil research', detail: error.message });
+  }
+});
+
 async function startup() {
   await seedAdmin();
   await loadTokenFromDB();

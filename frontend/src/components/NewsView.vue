@@ -2,16 +2,40 @@
   <div class="news-page">
     <div class="page-header">
       <div>
-        <h1 class="page-title">Berita Saham</h1>
-        <p class="page-subtitle">Berita terkini dari Stockbit</p>
+        <h1 class="page-title">Berita & Research</h1>
+        <p class="page-subtitle">Berita terkini dan analisis dari Stockbit</p>
       </div>
-      <div class="header-right">
+    </div>
+
+    <!-- Sub Tabs -->
+    <div class="sub-tabs">
+      <button
+        class="sub-tab"
+        :class="{ active: currentTab === 'berita' }"
+        @click="currentTab = 'berita'"
+      >
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 20H5a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2v1m2 13a2 2 0 0 1-2-2V7m2 13a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-2m-4-3H9M7 16h6M7 8h6v4H7V8z"/></svg>
+        Berita
+      </button>
+      <button
+        class="sub-tab"
+        :class="{ active: currentTab === 'research' }"
+        @click="currentTab = 'research'"
+      >
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+        Research
+      </button>
+    </div>
+
+    <!-- Berita Tab -->
+    <div v-if="currentTab === 'berita'">
+      <div class="tab-header">
+        <div></div>
         <button class="btn-refresh" @click="fetchNews" :disabled="loading">
           <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21.5 2v6h-6M2.5 22v-6h6M2 11.5a10 10 0 0 1 18.8-4.3M22 12.5a10 10 0 0 1-18.8 4.2"/></svg>
           {{ loading ? 'Loading...' : 'Refresh' }}
         </button>
       </div>
-    </div>
 
     <!-- Loading -->
     <div v-if="loading && newsList.length === 0" class="loading-state">
@@ -97,15 +121,23 @@
         </div>
       </div>
     </div>
+    </div>
+
+    <!-- Research Tab -->
+    <div v-if="currentTab === 'research'">
+      <ResearchView />
+    </div>
   </div>
 </template>
 
 <script setup>
 import { ref, onMounted } from 'vue'
 import axios from 'axios'
+import ResearchView from './ResearchView.vue'
 
 const API_BASE = ''
 
+const currentTab = ref('berita')
 const newsList = ref([])
 const loading = ref(false)
 const loadingMore = ref(false)
@@ -179,10 +211,31 @@ onMounted(() => {
   --shadow-hover: 0 4px 20px rgba(0,0,0,0.07), 0 1px 4px rgba(0,0,0,0.04);
 }
 
-.page-header { display: flex; justify-content: space-between; align-items: flex-end; margin-bottom: 20px; gap: 16px; flex-wrap: wrap; }
+.page-header { display: flex; justify-content: space-between; align-items: flex-end; margin-bottom: 16px; gap: 16px; flex-wrap: wrap; }
 .page-title { font-family: 'DM Sans', 'Inter', sans-serif; font-size: 28px; font-weight: 800; margin: 0; letter-spacing: -1px; color: var(--text); }
 .page-subtitle { font-size: 14px; color: var(--text2); margin: 2px 0 0; font-weight: 400; }
 .header-right { display: flex; align-items: center; gap: 14px; }
+
+/* Sub Tabs */
+.sub-tabs {
+  display: flex; gap: 4px;
+  background: var(--bg); border-radius: 12px; padding: 4px;
+  margin-bottom: 20px;
+}
+.sub-tab {
+  display: inline-flex; align-items: center; gap: 8px;
+  padding: 8px 20px; background: transparent; border: none;
+  border-radius: 10px;
+  font-family: 'Inter', sans-serif; font-size: 13px; font-weight: 600;
+  color: var(--text2); cursor: pointer; transition: all 0.2s ease;
+}
+.sub-tab:hover { color: var(--text); }
+.sub-tab.active {
+  background: var(--surface); color: var(--text);
+  box-shadow: 0 1px 3px rgba(0,0,0,0.06);
+}
+
+.tab-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
 
 .btn-refresh {
   display: inline-flex; align-items: center; gap: 8px;

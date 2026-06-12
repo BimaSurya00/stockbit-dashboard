@@ -1,0 +1,4 @@
+frontend/.claude/skills/ui-ux-pro-max/scripts
+[Errno 2] No such file or directory: '/home/Bima/Documents/stockbit-dashboard/frontend/.claude/skills/ui-ux-pro-max/scripts'
+frontend/.claude/skills/ui-ux-pro-max/data
+[Errno 2] No such file or directory: '/home/Bima/Documents/stockbit-dashboard/frontend/.claude/skills/ui-ux-pro-max/data'

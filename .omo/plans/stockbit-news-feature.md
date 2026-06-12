@@ -31,8 +31,7 @@ User ingin menambah fitur berita/news dari Stockbit API (`/stream/v3?category=ST
 **Research Findings**:
 - Stockbit API sudah terintegrasi di project
 - Pattern untuk fetch data sudah ada (getStockbitClient)
-- Worker pattern sudah ada (fetch-snapshots.js)
-- MongoDB pattern sudah ada (Snapshot model dengan TTL)
+- Worker pattern sudah ada (fetch-snapshots.js)    
 
 ### Actual API Response Structure (Verified)
 ```json
