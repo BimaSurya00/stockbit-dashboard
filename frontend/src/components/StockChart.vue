@@ -1,10 +1,12 @@
 <script setup>
 import { ref, computed, onMounted, onUnmounted, watch, nextTick } from 'vue'
+import axios from 'axios'
 import { createChart, LineSeries, HistogramSeries, CandlestickSeries } from 'lightweight-charts'
 
 const props = defineProps({
   data: Object,
-  overlays: { type: Array, default: () => [] }
+  overlays: { type: Array, default: () => [] },
+  symbol: { type: String, default: '' }
 })
 
 const chartContainer = ref(null)
@@ -29,10 +31,45 @@ const overlayColors = [
   '#F97316', // Orange
 ]
 
+// Candlestick data from Yahoo Finance
+const candleData = ref(null)
+const candleLoading = ref(false)
+
+async function fetchCandleData() {
+  if (!props.symbol || chartType.value !== 'candlestick') return
+  candleLoading.value = true
+  try {
+    const res = await axios.get('/api/candlestick/' + props.symbol, {
+      params: { days: 90 }
+    })
+    candleData.value = res.data
+  } catch (err) {
+    console.warn('[StockChart] Failed to fetch candle data:', err.message)
+    candleData.value = null
+  } finally {
+    candleLoading.value = false
+  }
+}
+
 // Parse chart data from API response
 function parseChartData(raw) {
   if (!raw) return null
 
+  // Yahoo Finance candlestick format: { symbol, source: 'yahoo', data: [{time, open, high, low, close, volume}] }
+  if (raw.source === 'yahoo' && Array.isArray(raw.data)) {
+    const items = raw.data.map(d => ({
+      formatted_date: d.time,
+      date: d.time,
+      value: d.close,
+      open: d.open,
+      high: d.high,
+      low: d.low,
+      volume: d.volume,
+    }))
+    return { items, previous: items.length > 0 ? items[0].open : null, source: 'yahoo' }
+  }
+
+  // Stockbit format
   let items = null
   if (raw.data && Array.isArray(raw.data.prices)) {
     items = raw.data.prices
@@ -170,7 +207,7 @@ function renderChart() {
     overlaySeries = []
   }
 
-  const parsed = parseChartData(props.data)
+  const parsed = parseChartData(candleData.value && chartType.value === 'candlestick' ? candleData.value : props.data)
   if (!parsed) {
     console.warn('[StockChart] parseChartData returned null')
     return
@@ -520,11 +557,13 @@ watch(() => [props.data, props.overlays], () => {
 
 watch(chartType, () => {
   console.log('[StockChart] Chart type changed to:', chartType.value)
-  nextTick(() => {
-    setTimeout(() => {
-      renderChart()
-    }, 100)
-  })
+  if (chartType.value === 'candlestick' && props.symbol) {
+    fetchCandleData().then(() => {
+      nextTick(() => setTimeout(renderChart, 100))
+    })
+  } else {
+    nextTick(() => setTimeout(renderChart, 100))
+  }
 })
 </script>
 
@@ -575,6 +614,10 @@ watch(chartType, () => {
 
     <!-- Chart -->
     <div class="chart-wrapper">
+      <div v-if="candleLoading" class="candle-loading">
+        <div class="spinner"></div>
+        <span>Memuat data candlestick...</span>
+      </div>
       <div ref="chartContainer" class="chart-container"></div>
       <div ref="tooltipRef" class="chart-tooltip"></div>
     </div>
@@ -700,6 +743,18 @@ watch(chartType, () => {
   width: 100%;
   height: 450px;
 }
+
+.candle-loading {
+  position: absolute; top: 0; left: 0; right: 0; bottom: 0;
+  display: flex; align-items: center; justify-content: center; gap: 10px;
+  background: rgba(255,255,255,0.8); z-index: 5;
+  font-size: 13px; color: #475569; font-family: 'Inter', sans-serif;
+}
+.spinner {
+  width: 18px; height: 18px; border: 2px solid #E2E8F0; border-top-color: #205BFC;
+  border-radius: 50%; animation: spin 0.6s linear infinite;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
 
 /* Tooltip */
 .chart-tooltip {

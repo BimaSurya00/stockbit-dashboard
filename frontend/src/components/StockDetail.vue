@@ -159,7 +159,7 @@ fetchChart()
             <div class="loading-spinner"></div>
             <span>Loading chart data...</span>
           </div>
-          <StockChart v-else :data="chartData" :overlays="overlayIndicators" />
+          <StockChart v-else :data="chartData" :overlays="overlayIndicators" :symbol="props.symbol" />
 
           <!-- Indicator Loading/Error -->
           <div v-if="indicatorLoading" class="indicator-status">

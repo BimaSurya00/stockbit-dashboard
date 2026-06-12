@@ -1511,6 +1511,127 @@ app.get('/api/news/:streamId', async (req, res) => {
   }
 });
 
+// --- Candlestick Endpoint (Yahoo Finance OHLC) ---
+app.get('/api/candlestick/:symbol', async (req, res) => {
+  try {
+    const { symbol } = req.params;
+    const { days = 90 } = req.query;
+
+    const { fetchStockData } = require('./lib/yahoo-finance');
+    const data = await fetchStockData(symbol.toUpperCase(), parseInt(days));
+
+    if (!data || data.length === 0) {
+      return res.status(404).json({ error: 'Data tidak ditemukan untuk ' + symbol });
+    }
+
+    const ohlc = data.map(d => ({
+      time: d.date,
+      open: d.open,
+      high: d.high,
+      low: d.low,
+      close: d.close,
+      volume: d.volume,
+    }));
+
+    res.json({
+      symbol: symbol.toUpperCase(),
+      source: 'yahoo',
+      count: ohlc.length,
+      data: ohlc,
+    });
+  } catch (error) {
+    console.error('Error fetching candlestick data:', error.message);
+    res.status(500).json({ error: 'Gagal mengambil data candlestick', detail: error.message });
+  }
+});
+
+// --- Stock Screener Endpoint ---
+app.get('/api/screener', async (req, res) => {
+  try {
+    const {
+      search, sector, industry,
+      minPrice, maxPrice,
+      minChange, maxChange,
+      minVolume, minMarketCap,
+      sort = 'symbol', order = 'asc',
+      page = 1, limit = 30
+    } = req.query;
+
+    const filter = { isActive: true };
+
+    if (search) {
+      filter.$or = [
+        { symbol: { $regex: search, $options: 'i' } },
+        { name: { $regex: search, $options: 'i' } }
+      ];
+    }
+    if (sector) filter.sector = { $regex: sector, $options: 'i' };
+    if (industry) filter.industry = { $regex: industry, $options: 'i' };
+    if (minPrice || maxPrice) {
+      filter.lastPrice = {};
+      if (minPrice) filter.lastPrice.$gte = parseFloat(minPrice);
+      if (maxPrice) filter.lastPrice.$lte = parseFloat(maxPrice);
+    }
+    if (minChange || maxChange) {
+      filter.change = {};
+      if (minChange) filter.change.$gte = parseFloat(minChange);
+      if (maxChange) filter.change.$lte = parseFloat(maxChange);
+    }
+    if (minVolume) filter.volume = { $gte: parseInt(minVolume) };
+    if (minMarketCap) filter.marketCap = { $gte: parseInt(minMarketCap) };
+
+    const sortMap = {
+      symbol: 'symbol',
+      price: 'lastPrice',
+      change: 'change',
+      volume: 'volume',
+      marketCap: 'marketCap',
+    };
+    const sortField = sortMap[sort] || 'symbol';
+    const sortDir = order === 'desc' ? -1 : 1;
+
+    const skip = (parseInt(page) - 1) * parseInt(limit);
+
+    const [emiten, total] = await Promise.all([
+      Emiten.find(filter)
+        .sort({ [sortField]: sortDir })
+        .skip(skip)
+        .limit(parseInt(limit))
+        .lean(),
+      Emiten.countDocuments(filter)
+    ]);
+
+    // Get unique sectors for filter dropdown
+    const sectors = await Emiten.distinct('sector', { isActive: true });
+
+    res.json({
+      data: emiten.map(e => ({
+        symbol: e.symbol,
+        name: e.name,
+        sector: e.sector,
+        industry: e.industry,
+        lastPrice: e.lastPrice,
+        change: e.change,
+        changePercent: e.changePercent,
+        volume: e.volume,
+        marketCap: e.marketCap,
+      })),
+      pagination: {
+        page: parseInt(page),
+        limit: parseInt(limit),
+        total,
+        totalPages: Math.ceil(total / parseInt(limit)),
+      },
+      filters: {
+        sectors: sectors.filter(Boolean).sort(),
+      }
+    });
+  } catch (error) {
+    console.error('Error in screener:', error.message);
+    res.status(500).json({ error: 'Gagal menjalankan screener', detail: error.message });
+  }
+});
+
 // --- Research Endpoint (Stockbit Snips) ---
 app.get('/api/research', async (req, res) => {
   try {

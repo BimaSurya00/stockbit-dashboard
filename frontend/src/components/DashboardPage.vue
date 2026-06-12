@@ -112,10 +112,16 @@ const tabLabels = {
   detail: 'Detail Saham',
   emiten: 'Daftar Emiten',
   broker: 'Top Broker',
+  'broker-flow': 'Broker Flow',
+  news: 'Berita',
+  screener: 'Stock Screener',
+  financial: 'Laporan Keuangan',
+  analysis: 'Quick Analysis',
+  volume: 'Volume Analysis',
   token: 'Token Status',
   workers: 'Worker Monitor',
-  financial: 'Laporan Keuangan',
-  users: 'Manage Users'
+  users: 'Manage Users',
+  backfill: 'Backfill Status'
 }
 
 async function fetchChart() {
