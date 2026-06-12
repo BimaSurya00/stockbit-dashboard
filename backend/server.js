@@ -1199,511 +1199,79 @@ app.post('/api/clear-cache', (req, res) => {
   res.json({ success: true, message: 'Cache cleared' });
 });
 
-// --- Backfill State ---
-let backfillState = {
-  isRunning: false,
-  startTime: null,
-  processedCount: 0,
-  successCount: 0,
-  failCount: 0,
-  totalCount: 0,
-  lastUpdate: null
-};
-
-// --- Trigger Yahoo Finance Backfill (Admin Only) ---
+// --- Yahoo Volume Backfill (uses WorkerJob) ---
 app.post('/api/admin/backfill-yahoo', authMiddleware, adminMiddleware, async (req, res) => {
   try {
-    // Cek apakah backfill sudah berjalan
-    if (backfillState.isRunning) {
-      return res.status(409).json({ 
-        error: 'Backfill sedang berjalan',
-        progress: {
-          processed: backfillState.processedCount,
-          total: backfillState.totalCount,
-          percent: Math.round((backfillState.processedCount / backfillState.totalCount) * 100)
-        }
+    const WorkerJob = require('./models/WorkerJob');
+    const job = await WorkerJob.findOne({ worker: 'yahoo-volume' });
+
+    if (job && job.status === 'running') {
+      return res.json({
+        message: 'Backfill sedang berjalan',
+        progress: job.progress,
+        status: job.status,
       });
     }
 
-    const { fetchVolumeForSymbol } = require('./lib/yahoo-finance');
-    const Emiten = require('./models/Emiten');
+    const { fork } = require('child_process');
+    const path = require('path');
+    const workerPath = path.join(__dirname, 'workers', 'fetch-yahoo-volume.js');
+    fork(workerPath, [], { stdio: 'pipe' });
 
-    const emitens = await Emiten.find({ isActive: true }).select('symbol name').lean();
-    
-    // Set backfill state
-    backfillState = {
-      isRunning: true,
-      startTime: new Date(),
-      processedCount: 0,
-      successCount: 0,
-      failCount: 0,
-      totalCount: emitens.length,
-      lastUpdate: new Date()
-    };
-    
-    res.json({ 
-      success: true, 
-      message: `Backfill started for ${emitens.length} emitens`,
-      total: emitens.length
+    res.json({
+      success: true,
+      message: 'Backfill worker started. Monitor via /api/admin/backfill-status',
     });
-
-    // Run backfill in background
-    (async () => {
-      for (let i = 0; i < emitens.length; i++) {
-        // Cek jika backfill di-cancel
-        if (!backfillState.isRunning) {
-          console.log('[YAHOO BACKFILL] Dibatalkan oleh user');
-          break;
-        }
-
-        const emiten = emitens[i];
-        try {
-          let chartPrice = await ChartPrice.findOne({
-            symbol: emiten.symbol,
-            timeframe: '1y'
-          });
-
-          // Skip jika sudah ada volume
-          if (chartPrice && chartPrice.prices && chartPrice.prices.some(p => p.volume && p.volume > 0)) {
-            backfillState.successCount++;
-            backfillState.processedCount++;
-            backfillState.lastUpdate = new Date();
-            continue;
-          }
-
-          // Fetch volume dari Yahoo dengan retry
-          let volumeData = {};
-          let retryCount = 0;
-          const maxRetries = 3;
-
-          while (retryCount < maxRetries) {
-            try {
-              volumeData = await fetchVolumeForSymbol(emiten.symbol, 365);
-              break;
-            } catch (err) {
-              retryCount++;
-              if (retryCount >= maxRetries) {
-                throw err;
-              }
-              // Wait before retry (exponential backoff)
-              await new Promise(resolve => setTimeout(resolve, 1000 * retryCount));
-            }
-          }
-
-          if (Object.keys(volumeData).length > 0) {
-            // Jika ChartPrice belum ada, buat baru
-            if (!chartPrice) {
-              chartPrice = new ChartPrice({
-                symbol: emiten.symbol,
-                timeframe: '1y',
-                prices: Object.entries(volumeData).map(([date, data]) => ({
-                  date: date,
-                  formatted_date: date,
-                  value: '0',
-                  volume: data.volume,
-                  open: data.open,
-                  high: data.high,
-                  low: data.low
-                })),
-                updatedAt: new Date()
-              });
-            } else {
-              // Update existing prices dengan volume
-              chartPrice.prices.forEach(p => {
-                const dateKey = p.formatted_date || p.date;
-                if (volumeData[dateKey]) {
-                  p.volume = volumeData[dateKey].volume;
-                  p.open = volumeData[dateKey].open;
-                  p.high = volumeData[dateKey].high;
-                  p.low = volumeData[dateKey].low;
-                }
-              });
-            }
-
-            await chartPrice.save();
-            backfillState.successCount++;
-          } else {
-            backfillState.failCount++;
-          }
-        } catch (err) {
-          backfillState.failCount++;
-          console.error(`[YAHOO BACKFILL] Error ${emiten.symbol}:`, err.message);
-        }
-
-        backfillState.processedCount++;
-        backfillState.lastUpdate = new Date();
-        
-        // Log progress setiap 50 saham
-        if (backfillState.processedCount % 50 === 0) {
-          console.log(`[YAHOO BACKFILL] Progress: ${backfillState.processedCount}/${emitens.length} (${backfillState.successCount} berhasil, ${backfillState.failCount} gagal)`);
-        }
-
-        // Rate limiting
-        await new Promise(resolve => setTimeout(resolve, 500));
-      }
-
-      // Mark as complete
-      backfillState.isRunning = false;
-      console.log(`[YAHOO BACKFILL] Selesai: ${backfillState.successCount} berhasil, ${backfillState.failCount} gagal dari ${emitens.length} emiten`);
-    })();
-
   } catch (error) {
-    backfillState.isRunning = false;
-    console.error('Error backfill:', error.message);
+    console.error('Error starting backfill:', error.message);
     res.status(500).json({ error: 'Gagal start backfill', detail: error.message });
   }
 });
 
-// --- Cancel Backfill ---
 app.post('/api/admin/backfill-cancel', authMiddleware, adminMiddleware, async (req, res) => {
-  if (!backfillState.isRunning) {
-    return res.json({ success: true, message: 'Tidak ada backfill yang berjalan' });
+  try {
+    const WorkerJob = require('./models/WorkerJob');
+    await WorkerJob.findOneAndUpdate(
+      { worker: 'yahoo-volume', status: 'running' },
+      { status: 'idle', message: 'Cancelled by user' }
+    );
+    res.json({ success: true, message: 'Backfill cancel requested' });
+  } catch (error) {
+    res.status(500).json({ error: 'Gagal cancel backfill', detail: error.message });
   }
-  
-  backfillState.isRunning = false;
-  res.json({ 
-    success: true, 
-    message: 'Backfill dibatalkan',
-    progress: {
-      processed: backfillState.processedCount,
-      success: backfillState.successCount,
-      fail: backfillState.failCount
-    }
-  });
 });
 
-// --- Check Backfill Status ---
 app.get('/api/admin/backfill-status', authMiddleware, adminMiddleware, async (req, res) => {
   try {
-    const totalEmiten = await Emiten.countDocuments({ isActive: true });
-    const emitensWithVolume = await ChartPrice.aggregate([
-      { $match: { timeframe: '1y' } },
-      { $unwind: '$prices' },
-      { $match: { 'prices.volume': { $gt: 0 } } },
-      { $group: { _id: '$symbol' } },
-      { $count: 'total' }
-    ]);
+    const WorkerJob = require('./models/WorkerJob');
+    const Emiten = require('./models/Emiten');
+    const ChartPrice = require('./models/ChartPrice');
 
-    const withVolume = emitensWithVolume[0]?.total || 0;
+    const job = await WorkerJob.findOne({ worker: 'yahoo-volume' });
+    const totalEmiten = await Emiten.countDocuments({ isActive: true });
+    const withVolume = await ChartPrice.countDocuments({
+      timeframe: '1y',
+      'prices.volume': { $exists: true, $gt: 0 },
+    });
 
     res.json({
-      totalEmiten,
-      withVolume,
-      withoutVolume: totalEmiten - withVolume,
-      percentComplete: Math.round((withVolume / totalEmiten) * 100),
-      backfill: {
-        isRunning: backfillState.isRunning,
-        startTime: backfillState.startTime,
-        processedCount: backfillState.processedCount,
-        successCount: backfillState.successCount,
-        failCount: backfillState.failCount,
-        totalCount: backfillState.totalCount,
-        lastUpdate: backfillState.lastUpdate
-      }
+      isRunning: job?.status === 'running',
+      status: job?.status || 'never_run',
+      progress: job?.progress || { current: 0, total: totalEmiten },
+      message: job?.message || '',
+      lastRun: job?.lastRun,
+      stats: {
+        totalEmiten,
+        emitensWithVolume: withVolume,
+        percentComplete: totalEmiten > 0 ? Math.round((withVolume / totalEmiten) * 100) : 0,
+      },
     });
   } catch (error) {
+    console.error('Error cek backfill status:', error.message);
     res.status(500).json({ error: 'Gagal cek status' });
   }
 });
 
-// --- News Endpoints ---
-app.get('/api/news', async (req, res) => {
-  try {
-    const { limit = 20, cursor, symbol, source } = req.query;
-
-    // Try to fetch from Stockbit API first
-    try {
-      const client = getStockbitClient();
-      const params = {
-        category: 'STREAM_CATEGORY_NEWS',
-        last_stream_id: cursor || 0,
-        limit: parseInt(limit)
-      };
-
-      const response = await client.get('/stream/v3', { params });
-
-      if (response.data?.data?.stream) {
-        const newsItems = response.data.data.stream;
-
-        // Save to MongoDB (upsert)
-        for (const item of newsItems) {
-          await News.findOneAndUpdate(
-            { streamId: item.stream_id },
-            {
-              streamId: item.stream_id,
-              title: item.title,
-              content: item.content,
-              contentOriginal: item.content_original,
-              titleUrl: item.title_url,
-              createdAt: new Date(item.created_at),
-              createdDisplay: item.created_display,
-              userId: item.user?.user_id,
-              username: item.user?.username,
-              fullname: item.user?.fullname,
-              userAvatar: item.user?.avatar,
-              type: item.type,
-              images: item.images || [],
-              source: item.news_feed?.source,
-              sourceLabel: item.news_feed?.label,
-              sourceImage: item.news_feed?.img,
-              topics: item.topics || [],
-              totalReplies: item.total_replies || 0,
-              totalLikes: item.total_likes || 0,
-              rawData: item,
-              fetchedAt: new Date()
-            },
-            { upsert: true, new: true }
-          );
-        }
-
-        return res.json(response.data);
-      }
-    } catch (apiErr) {
-      console.warn('[NEWS] Stockbit API error, fallback to MongoDB:', apiErr.message);
-    }
-
-    // Fallback to MongoDB
-    const query = {};
-    if (symbol) {
-      query.topics = symbol.toUpperCase();
-    }
-    if (source) {
-      query.source = source;
-    }
-
-    const news = await News.find(query)
-      .sort({ createdAt: -1 })
-      .limit(parseInt(limit))
-      .lean();
-
-    res.json({
-      data: {
-        stream: news.map(n => n.rawData || n),
-        pagination: {
-          is_last_page: news.length < parseInt(limit),
-          next_cursor: news.length > 0 ? news[news.length - 1].streamId : null,
-          total: news.length
-        }
-      }
-    });
-  } catch (error) {
-    console.error('Error fetching news:', error.message);
-    res.status(500).json({ error: 'Gagal mengambil news', detail: error.message });
-  }
-});
-
-app.get('/api/news/:streamId', async (req, res) => {
-  try {
-    const { streamId } = req.params;
-
-    const news = await News.findOne({ streamId: parseInt(streamId) }).lean();
-
-    if (!news) {
-      return res.status(404).json({ error: 'News tidak ditemukan' });
-    }
-
-    res.json({
-      data: news.rawData || news
-    });
-  } catch (error) {
-    console.error('Error fetching news detail:', error.message);
-    res.status(500).json({ error: 'Gagal mengambil detail news', detail: error.message });
-  }
-});
-
-// --- Candlestick Endpoint (Yahoo Finance OHLC) ---
-app.get('/api/candlestick/:symbol', async (req, res) => {
-  try {
-    const { symbol } = req.params;
-    const { days = 90 } = req.query;
-
-    const { fetchStockData } = require('./lib/yahoo-finance');
-    const data = await fetchStockData(symbol.toUpperCase(), parseInt(days));
-
-    if (!data || data.length === 0) {
-      return res.status(404).json({ error: 'Data tidak ditemukan untuk ' + symbol });
-    }
-
-    const ohlc = data.map(d => ({
-      time: d.date,
-      open: d.open,
-      high: d.high,
-      low: d.low,
-      close: d.close,
-      volume: d.volume,
-    }));
-
-    res.json({
-      symbol: symbol.toUpperCase(),
-      source: 'yahoo',
-      count: ohlc.length,
-      data: ohlc,
-    });
-  } catch (error) {
-    console.error('Error fetching candlestick data:', error.message);
-    res.status(500).json({ error: 'Gagal mengambil data candlestick', detail: error.message });
-  }
-});
-
-// --- Stock Screener Endpoint ---
-app.get('/api/screener', async (req, res) => {
-  try {
-    const {
-      search, sector, industry,
-      minPrice, maxPrice,
-      minChange, maxChange,
-      minVolume, minMarketCap,
-      sort = 'symbol', order = 'asc',
-      page = 1, limit = 30
-    } = req.query;
-
-    const filter = { isActive: true };
-
-    if (search) {
-      filter.$or = [
-        { symbol: { $regex: search, $options: 'i' } },
-        { name: { $regex: search, $options: 'i' } }
-      ];
-    }
-    if (sector) filter.sector = { $regex: sector, $options: 'i' };
-    if (industry) filter.industry = { $regex: industry, $options: 'i' };
-    if (minPrice || maxPrice) {
-      filter.lastPrice = {};
-      if (minPrice) filter.lastPrice.$gte = parseFloat(minPrice);
-      if (maxPrice) filter.lastPrice.$lte = parseFloat(maxPrice);
-    }
-    if (minChange || maxChange) {
-      filter.change = {};
-      if (minChange) filter.change.$gte = parseFloat(minChange);
-      if (maxChange) filter.change.$lte = parseFloat(maxChange);
-    }
-    if (minVolume) filter.volume = { $gte: parseInt(minVolume) };
-    if (minMarketCap) filter.marketCap = { $gte: parseInt(minMarketCap) };
-
-    const sortMap = {
-      symbol: 'symbol',
-      price: 'lastPrice',
-      change: 'change',
-      volume: 'volume',
-      marketCap: 'marketCap',
-    };
-    const sortField = sortMap[sort] || 'symbol';
-    const sortDir = order === 'desc' ? -1 : 1;
-
-    const skip = (parseInt(page) - 1) * parseInt(limit);
-
-    const [emiten, total] = await Promise.all([
-      Emiten.find(filter)
-        .sort({ [sortField]: sortDir })
-        .skip(skip)
-        .limit(parseInt(limit))
-        .lean(),
-      Emiten.countDocuments(filter)
-    ]);
-
-    // Get unique sectors for filter dropdown
-    const sectors = await Emiten.distinct('sector', { isActive: true });
-
-    res.json({
-      data: emiten.map(e => ({
-        symbol: e.symbol,
-        name: e.name,
-        sector: e.sector,
-        industry: e.industry,
-        lastPrice: e.lastPrice,
-        change: e.change,
-        changePercent: e.changePercent,
-        volume: e.volume,
-        marketCap: e.marketCap,
-      })),
-      pagination: {
-        page: parseInt(page),
-        limit: parseInt(limit),
-        total,
-        totalPages: Math.ceil(total / parseInt(limit)),
-      },
-      filters: {
-        sectors: sectors.filter(Boolean).sort(),
-      }
-    });
-  } catch (error) {
-    console.error('Error in screener:', error.message);
-    res.status(500).json({ error: 'Gagal menjalankan screener', detail: error.message });
-  }
-});
-
-// --- Research Endpoint (Stockbit Snips) ---
-app.get('/api/research', async (req, res) => {
-  try {
-    const { keyword = '' } = req.query;
-
-    // Try to fetch from Stockbit API first
-    try {
-      const client = getStockbitClient();
-      const params = {};
-      if (keyword) params.keyword = keyword;
-
-      const response = await client.get('/research', { params });
-
-      if (response.data?.data) {
-        // Save/update to MongoDB
-        const Research = require('./models/Research');
-        for (const item of response.data.data) {
-          if (!item.id) continue;
-          await Research.findOneAndUpdate(
-            { researchId: item.id },
-            {
-              researchId: item.id,
-              title: item.title,
-              categoryLabel: item.category_label || 'Snips',
-              url: item.url || '',
-              iconUrl: item.icon_url || '',
-              imageUrl: item.image_url || '',
-              description: item.description || '',
-              compressedImageUrl: item.compressed_image_url || '',
-              created: item.created ? new Date(item.created) : new Date(),
-              fetchedAt: new Date()
-            },
-            { upsert: true, new: true }
-          );
-        }
-        return res.json(response.data);
-      }
-    } catch (apiErr) {
-      console.warn('[RESEARCH] Stockbit API error, fallback to MongoDB:', apiErr.message);
-    }
-
-    // Fallback to MongoDB
-    const Research = require('./models/Research');
-    const query = {};
-    if (keyword) {
-      query.title = { $regex: keyword, $options: 'i' };
-    }
-
-    const items = await Research.find(query)
-      .sort({ created: -1 })
-      .limit(50)
-      .lean();
-
-    res.json({
-      message: items.length > 0 ? 'Successfully retrieved research (from cache)' : 'No research data available',
-      data: items.map(r => ({
-        id: r.researchId,
-        title: r.title,
-        category_label: r.categoryLabel,
-        url: r.url,
-        icon_url: r.iconUrl,
-        image_url: r.imageUrl,
-        compressed_image_url: r.compressedImageUrl,
-        description: r.description,
-        created: r.created,
-      }))
-    });
-  } catch (error) {
-    console.error('Error fetching research:', error.message);
-    res.status(500).json({ error: 'Gagal mengambil research', detail: error.message });
-  }
-});
 
 async function startup() {
   await seedAdmin();

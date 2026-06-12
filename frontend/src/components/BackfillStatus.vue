@@ -42,26 +42,22 @@
         </div>
         
         <!-- Backfill Details (saat berjalan) -->
-        <div v-if="status.backfill && status.backfill.isRunning" class="backfill-details">
+        <div v-if="status.isRunning" class="backfill-details">
           <div class="detail-row">
             <span class="detail-label">Status:</span>
-            <span class="detail-value running">Berjalan</span>
+            <span class="detail-value running">{{ status.status }}</span>
           </div>
           <div class="detail-row">
-            <span class="detail-label">Processed:</span>
-            <span class="detail-value">{{ status.backfill.processedCount }} / {{ status.backfill.totalCount }}</span>
+            <span class="detail-label">Progress:</span>
+            <span class="detail-value">{{ status.progress?.current || 0 }} / {{ status.progress?.total || status.totalEmiten }}</span>
           </div>
-          <div class="detail-row">
-            <span class="detail-label">Berhasil:</span>
-            <span class="detail-value green">{{ status.backfill.successCount }}</span>
+          <div class="detail-row" v-if="status.message">
+            <span class="detail-label">Pesan:</span>
+            <span class="detail-value">{{ status.message }}</span>
           </div>
-          <div class="detail-row">
-            <span class="detail-label">Gagal:</span>
-            <span class="detail-value red">{{ status.backfill.failCount }}</span>
-          </div>
-          <div class="detail-row">
+          <div class="detail-row" v-if="status.lastRun">
             <span class="detail-label">Mulai:</span>
-            <span class="detail-value">{{ formatTime(status.backfill.startTime) }}</span>
+            <span class="detail-value">{{ formatTime(status.lastRun) }}</span>
           </div>
         </div>
       </div>
@@ -91,7 +87,7 @@
             <h3 class="card-title">Belum Ada Volume</h3>
             <span class="badge red">Pending</span>
           </div>
-          <div class="summary-value red">{{ status.withoutVolume }}</div>
+          <div class="summary-value red">{{ (status.totalEmiten || 0) - (status.withVolume || 0) }}</div>
           <div class="summary-desc">Saham yang belum di-backfill</div>
         </div>
 
@@ -142,7 +138,7 @@ const autoRefreshInterval = ref(null)
 
 // Computed
 const backfillRunning = computed(() => {
-  return status.value?.backfill?.isRunning || false
+  return status.value?.isRunning || false
 })
 
 const progressClass = computed(() => {
@@ -216,7 +212,7 @@ async function triggerBackfill() {
     const res = await axios.post(`${API_BASE}/api/admin/backfill-yahoo`, {}, {
       headers: { Authorization: `Bearer ${token}` }
     })
-    backfillMessage.value = `Backfill started untuk ${res.data.total} emiten. Proses berjalan di background (~8 menit).`
+    backfillMessage.value = 'Backfill worker started. Proses berjalan di background (~8 menit untuk 957 saham).'
     
     startAutoRefresh()
     setTimeout(() => fetchStatus(), 2000)
