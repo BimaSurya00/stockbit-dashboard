@@ -14,8 +14,10 @@ import WorkerMonitor from './WorkerMonitor.vue'
 import FinancialReports from './FinancialReports.vue'
 import QuickAnalysis from './QuickAnalysis.vue'
 import BrokerFlow from './BrokerFlow.vue'
+import BrokerPage from './BrokerPage.vue'
 import VolumeAnalysis from './VolumeAnalysis.vue'
 import BackfillStatus from './BackfillStatus.vue'
+import SystemMonitor from './SystemMonitor.vue'
 import NewsView from './NewsView.vue'
 
 const router = useRouter()
@@ -65,8 +67,7 @@ const menuSections = [
     label: 'MARKET',
     items: [
       { key: 'emiten', label: 'Daftar Emiten', icon: 'list' },
-      { key: 'broker', label: 'Top Broker', icon: 'broker' },
-      { key: 'broker-flow', label: 'Broker Flow', icon: 'activity' },
+      { key: 'broker', label: 'Broker', icon: 'broker' },
       { key: 'financial', label: 'Laporan Keuangan', icon: 'file-text' },
       { key: 'news', label: 'Berita', icon: 'file-text' },
     ]
@@ -76,15 +77,13 @@ const menuSections = [
     items: [
       { key: 'analysis', label: 'Quick Analysis', icon: 'chart' },
       { key: 'volume', label: 'Volume Analysis', icon: 'activity' },
-      { key: 'token', label: 'Token Status', icon: 'token' },
-      { key: 'workers', label: 'Worker Monitor', icon: 'activity' },
+      { key: 'monitor', label: 'System Monitor', icon: 'settings' },
     ]
   },
   {
     label: 'ADMIN',
     items: [
       { key: 'users', label: 'Manage Users', icon: 'profile' },
-      { key: 'backfill', label: 'Backfill Status', icon: 'activity' },
     ]
   }
 ]
@@ -111,16 +110,13 @@ const tabLabels = {
   trending: 'Trending',
   detail: 'Detail Saham',
   emiten: 'Daftar Emiten',
-  broker: 'Top Broker',
-  'broker-flow': 'Broker Flow',
+  broker: 'Broker',
   news: 'Berita',
   financial: 'Laporan Keuangan',
   analysis: 'Quick Analysis',
   volume: 'Volume Analysis',
-  token: 'Token Status',
-  workers: 'Worker Monitor',
-  users: 'Manage Users',
-  backfill: 'Backfill Status'
+  monitor: 'System Monitor',
+  users: 'Manage Users'
 }
 
 async function fetchChart() {
@@ -330,14 +326,9 @@ function toggleSidebar() {
           <EmitenList @select-emiten="goToDetail" />
         </div>
 
-        <!-- Top Broker -->
+        <!-- Broker -->
         <div v-if="activeTab === 'broker'">
-          <BrokerTop />
-        </div>
-
-        <!-- Broker Flow -->
-        <div v-if="activeTab === 'broker-flow'">
-          <BrokerFlow />
+          <BrokerPage />
         </div>
 
         <!-- Quick Analysis -->
@@ -350,75 +341,9 @@ function toggleSidebar() {
           <VolumeAnalysis />
         </div>
 
-        <!-- Token Status -->
-        <div v-if="activeTab === 'token' && isAdmin()">
-          <div class="page-card">
-            <div class="page-card-header">
-              <div>
-                <h2 class="page-title">Update Bearer Token</h2>
-                <p class="page-subtitle">Masukkan token JWT baru dari Stockbit (dapat dari browser Network tab setelah login)</p>
-              </div>
-            </div>
-            <div class="token-form">
-              <input
-                v-model="tokenInput"
-                type="text"
-                placeholder="Paste Bearer token here..."
-                class="token-input"
-                :disabled="tokenUpdating"
-              />
-              <button @click="updateToken" :disabled="tokenUpdating || !tokenInput.trim()" class="btn-primary">
-                {{ tokenUpdating ? 'Updating...' : 'Update Token' }}
-              </button>
-            </div>
-            <div v-if="tokenMessage" class="token-msg" :class="{ success: tokenMessage.startsWith('Token updated'), error: tokenMessage.startsWith('Error') }">
-              {{ tokenMessage }}
-            </div>
-          </div>
-
-          <div class="page-card">
-            <div class="page-card-header">
-              <div>
-                <h2 class="page-title">Status Token</h2>
-                <p class="page-subtitle">Cek expire date dan validitas token JWT</p>
-              </div>
-              <button @click="checkToken" :disabled="loading" class="btn-primary">
-                {{ loading ? 'Loading...' : 'Cek Token' }}
-              </button>
-            </div>
-            <div v-if="result" class="token-status-card">
-              <div class="token-status-row">
-                <span class="ts-label">Status</span>
-                <span class="ts-badge" :class="result.valid ? 'valid' : 'expired'">{{ result.valid ? 'VALID' : 'EXPIRED' }}</span>
-              </div>
-              <div class="token-status-row" v-if="result.username">
-                <span class="ts-label">Username</span>
-                <span class="ts-value">{{ result.username }}</span>
-              </div>
-              <div class="token-status-row" v-if="result.expiryDate">
-                <span class="ts-label">Expiry</span>
-                <span class="ts-value">{{ new Date(result.expiryDate).toLocaleString() }}</span>
-              </div>
-              <div class="token-status-row" v-if="result.message">
-                <span class="ts-label">Info</span>
-                <span class="ts-value">{{ result.message }}</span>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <div v-if="activeTab === 'token' && !isAdmin()" class="page-card">
-          <div class="page-card-header">
-            <div>
-              <h2 class="page-title">Akses Terbatas</h2>
-              <p class="page-subtitle">Hanya admin yang dapat mengelola token Stockbit</p>
-            </div>
-          </div>
-        </div>
-
-        <!-- Worker Monitor -->
-        <div v-if="activeTab === 'workers'">
-          <WorkerMonitor />
+        <!-- System Monitor -->
+        <div v-if="activeTab === 'monitor'">
+          <SystemMonitor />
         </div>
 
         <!-- Financial Reports -->
@@ -434,11 +359,6 @@ function toggleSidebar() {
         <!-- Manage Users (admin only) -->
         <div v-if="activeTab === 'users'">
           <UserManagement />
-        </div>
-
-        <!-- Backfill Status (admin only) -->
-        <div v-if="activeTab === 'backfill'">
-          <BackfillStatus />
         </div>
 
         <!-- Error -->
