@@ -1199,6 +1199,111 @@ app.post('/api/clear-cache', (req, res) => {
   res.json({ success: true, message: 'Cache cleared' });
 });
 
+// --- Candlestick Endpoint (Yahoo Finance OHLC) ---
+app.get('/api/candlestick/:symbol', async (req, res) => {
+  try {
+    const { symbol } = req.params;
+    const { days = 90 } = req.query;
+    const { fetchStockData } = require('./lib/yahoo-finance');
+    const data = await fetchStockData(symbol.toUpperCase(), parseInt(days));
+    if (!data || data.length === 0) {
+      return res.status(404).json({ error: 'Data tidak ditemukan untuk ' + symbol });
+    }
+    const ohlc = data.map(d => ({ time: d.date, open: d.open, high: d.high, low: d.low, close: d.close, volume: d.volume }));
+    res.json({ symbol: symbol.toUpperCase(), source: 'yahoo', count: ohlc.length, data: ohlc });
+  } catch (error) {
+    console.error('Error fetching candlestick data:', error.message);
+    res.status(500).json({ error: 'Gagal mengambil data candlestick', detail: error.message });
+  }
+});
+
+// --- Stock Screener Endpoint ---
+app.get('/api/screener', async (req, res) => {
+  try {
+    const { search, sector, industry, minPrice, maxPrice, minChange, maxChange, minVolume, minMarketCap, sort = 'symbol', order = 'asc', page = 1, limit = 30 } = req.query;
+    const filter = { isActive: true };
+    if (search) filter.$or = [{ symbol: { $regex: search, $options: 'i' } }, { name: { $regex: search, $options: 'i' } }];
+    if (sector) filter.sector = { $regex: sector, $options: 'i' };
+    if (industry) filter.industry = { $regex: industry, $options: 'i' };
+    if (minPrice || maxPrice) { filter.lastPrice = {}; if (minPrice) filter.lastPrice.$gte = parseFloat(minPrice); if (maxPrice) filter.lastPrice.$lte = parseFloat(maxPrice); }
+    if (minChange || maxChange) { filter.change = {}; if (minChange) filter.change.$gte = parseFloat(minChange); if (maxChange) filter.change.$lte = parseFloat(maxChange); }
+    if (minVolume) filter.volume = { $gte: parseInt(minVolume) };
+    if (minMarketCap) filter.marketCap = { $gte: parseInt(minMarketCap) };
+    const sortMap = { symbol: 'symbol', price: 'lastPrice', change: 'change', volume: 'volume', marketCap: 'marketCap' };
+    const sortField = sortMap[sort] || 'symbol';
+    const sortDir = order === 'desc' ? -1 : 1;
+    const skip = (parseInt(page) - 1) * parseInt(limit);
+    const [data, total] = await Promise.all([
+      Emiten.find(filter).sort({ [sortField]: sortDir }).skip(skip).limit(parseInt(limit)).lean(),
+      Emiten.countDocuments(filter)
+    ]);
+    const sectors = await Emiten.distinct('sector', { isActive: true });
+    res.json({
+      data: data.map(e => ({ symbol: e.symbol, name: e.name, sector: e.sector, industry: e.industry, lastPrice: e.lastPrice, change: e.change, changePercent: e.changePercent, volume: e.volume, marketCap: e.marketCap })),
+      pagination: { page: parseInt(page), limit: parseInt(limit), total, totalPages: Math.ceil(total / parseInt(limit)) },
+      filters: { sectors: sectors.filter(Boolean).sort() }
+    });
+  } catch (error) { console.error('Error in screener:', error.message); res.status(500).json({ error: 'Gagal menjalankan screener', detail: error.message }); }
+});
+
+// --- Research Endpoint (Stockbit Snips) ---
+app.get('/api/research', async (req, res) => {
+  try {
+    const { keyword = '' } = req.query;
+    try {
+      const client = getStockbitClient();
+      const params = {}; if (keyword) params.keyword = keyword;
+      const response = await client.get('/research', { params });
+      if (response.data?.data) {
+        const Research = require('./models/Research');
+        for (const item of response.data.data) {
+          if (!item.id) continue;
+          await Research.findOneAndUpdate({ researchId: item.id }, { researchId: item.id, title: item.title, categoryLabel: item.category_label || 'Snips', url: item.url || '', iconUrl: item.icon_url || '', imageUrl: item.image_url || '', description: item.description || '', compressedImageUrl: item.compressed_image_url || '', created: item.created ? new Date(item.created) : new Date(), fetchedAt: new Date() }, { upsert: true, new: true });
+        }
+        return res.json(response.data);
+      }
+    } catch (apiErr) { console.warn('[RESEARCH] Stockbit API error, fallback to MongoDB:', apiErr.message); }
+    const Research = require('./models/Research');
+    const query = {}; if (keyword) query.title = { $regex: keyword, $options: 'i' };
+    const items = await Research.find(query).sort({ created: -1 }).limit(50).lean();
+    res.json({
+      message: items.length > 0 ? 'Successfully retrieved research (from cache)' : 'No research data available',
+      data: items.map(r => ({ id: r.researchId, title: r.title, category_label: r.categoryLabel, url: r.url, icon_url: r.iconUrl, image_url: r.imageUrl, compressed_image_url: r.compressedImageUrl, description: r.description, created: r.created }))
+    });
+  } catch (error) { console.error('Error fetching research:', error.message); res.status(500).json({ error: 'Gagal mengambil research', detail: error.message }); }
+});
+
+// --- News Endpoints ---
+app.get('/api/news', async (req, res) => {
+  try {
+    const { limit = 20, cursor, symbol, source } = req.query;
+    try {
+      const client = getStockbitClient();
+      const params = { category: 'STREAM_CATEGORY_NEWS', last_stream_id: cursor || 0, limit: parseInt(limit) };
+      const response = await client.get('/stream/v3', { params });
+      if (response.data?.data?.stream) {
+        const newsItems = response.data.data.stream;
+        for (const item of newsItems) {
+          await News.findOneAndUpdate({ streamId: item.stream_id }, { streamId: item.stream_id, title: item.title, content: item.content, contentOriginal: item.content_original, titleUrl: item.title_url, createdAt: new Date(item.created_at), createdDisplay: item.created_display, userId: item.user?.user_id, username: item.user?.username, fullname: item.user?.fullname, userAvatar: item.user?.avatar, type: item.type, images: item.images || [], source: item.news_feed?.source, sourceLabel: item.news_feed?.label, sourceImage: item.news_feed?.img, topics: item.topics || [], totalReplies: item.total_replies || 0, totalLikes: item.total_likes || 0, rawData: item, fetchedAt: new Date() }, { upsert: true, new: true });
+        }
+        return res.json(response.data);
+      }
+    } catch (apiErr) { console.warn('[NEWS] Stockbit API error, fallback to MongoDB:', apiErr.message); }
+    const query = {}; if (symbol) query.topics = symbol.toUpperCase(); if (source) query.source = source;
+    const news = await News.find(query).sort({ createdAt: -1 }).limit(parseInt(limit)).lean();
+    res.json({ data: { stream: news.map(n => n.rawData || n), pagination: { is_last_page: news.length < parseInt(limit), next_cursor: news.length > 0 ? news[news.length - 1].streamId : null, total: news.length } } });
+  } catch (error) { console.error('Error fetching news:', error.message); res.status(500).json({ error: 'Gagal mengambil news', detail: error.message }); }
+});
+
+app.get('/api/news/:streamId', async (req, res) => {
+  try {
+    const { streamId } = req.params;
+    const news = await News.findOne({ streamId: parseInt(streamId) }).lean();
+    if (!news) return res.status(404).json({ error: 'News tidak ditemukan' });
+    res.json({ data: news.rawData || news });
+  } catch (error) { console.error('Error fetching news detail:', error.message); res.status(500).json({ error: 'Gagal mengambil detail news', detail: error.message }); }
+});
+
 // --- Yahoo Volume Backfill (uses WorkerJob) ---
 app.post('/api/admin/backfill-yahoo', authMiddleware, adminMiddleware, async (req, res) => {
   try {
