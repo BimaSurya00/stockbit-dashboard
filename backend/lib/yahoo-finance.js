@@ -1,12 +1,6 @@
-const YahooFinanceModule = require('yahoo-finance2');
+const YahooFinance2 = require('yahoo-finance2').default;
 
-let yahooFinance;
-
-try {
-  yahooFinance = new YahooFinanceModule.default();
-} catch (e) {
-  yahooFinance = new YahooFinanceModule();
-}
+const yahooFinance = new YahooFinance2();
 
 const cache = new Map();
 const CACHE_TTL = 5 * 60 * 1000;
