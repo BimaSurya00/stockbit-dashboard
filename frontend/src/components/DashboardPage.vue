@@ -17,7 +17,6 @@ import BrokerFlow from './BrokerFlow.vue'
 import VolumeAnalysis from './VolumeAnalysis.vue'
 import BackfillStatus from './BackfillStatus.vue'
 import NewsView from './NewsView.vue'
-import ScreenerView from './ScreenerView.vue'
 
 const router = useRouter()
 
@@ -70,7 +69,6 @@ const menuSections = [
       { key: 'broker-flow', label: 'Broker Flow', icon: 'activity' },
       { key: 'financial', label: 'Laporan Keuangan', icon: 'file-text' },
       { key: 'news', label: 'Berita', icon: 'file-text' },
-      { key: 'screener', label: 'Stock Screener', icon: 'search' },
     ]
   },
   {
@@ -116,7 +114,6 @@ const tabLabels = {
   broker: 'Top Broker',
   'broker-flow': 'Broker Flow',
   news: 'Berita',
-  screener: 'Stock Screener',
   financial: 'Laporan Keuangan',
   analysis: 'Quick Analysis',
   volume: 'Volume Analysis',
@@ -432,11 +429,6 @@ function toggleSidebar() {
         <!-- News -->
         <div v-if="activeTab === 'news'">
           <NewsView />
-        </div>
-
-        <!-- Stock Screener -->
-        <div v-if="activeTab === 'screener'">
-          <ScreenerView @select-emiten="goToDetail" />
         </div>
 
         <!-- Manage Users (admin only) -->
