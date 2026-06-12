@@ -1515,12 +1515,69 @@ app.get('/api/news/:streamId', async (req, res) => {
 app.get('/api/research', async (req, res) => {
   try {
     const { keyword = '' } = req.query;
-    const client = getStockbitClient();
-    const params = {};
-    if (keyword) params.keyword = keyword;
 
-    const response = await client.get('/research', { params });
-    res.json(response.data);
+    // Try to fetch from Stockbit API first
+    try {
+      const client = getStockbitClient();
+      const params = {};
+      if (keyword) params.keyword = keyword;
+
+      const response = await client.get('/research', { params });
+
+      if (response.data?.data) {
+        // Save/update to MongoDB
+        const Research = require('./models/Research');
+        for (const item of response.data.data) {
+          if (!item.id) continue;
+          await Research.findOneAndUpdate(
+            { researchId: item.id },
+            {
+              researchId: item.id,
+              title: item.title,
+              categoryLabel: item.category_label || 'Snips',
+              url: item.url || '',
+              iconUrl: item.icon_url || '',
+              imageUrl: item.image_url || '',
+              description: item.description || '',
+              compressedImageUrl: item.compressed_image_url || '',
+              created: item.created ? new Date(item.created) : new Date(),
+              fetchedAt: new Date()
+            },
+            { upsert: true, new: true }
+          );
+        }
+        return res.json(response.data);
+      }
+    } catch (apiErr) {
+      console.warn('[RESEARCH] Stockbit API error, fallback to MongoDB:', apiErr.message);
+    }
+
+    // Fallback to MongoDB
+    const Research = require('./models/Research');
+    const query = {};
+    if (keyword) {
+      query.title = { $regex: keyword, $options: 'i' };
+    }
+
+    const items = await Research.find(query)
+      .sort({ created: -1 })
+      .limit(50)
+      .lean();
+
+    res.json({
+      message: items.length > 0 ? 'Successfully retrieved research (from cache)' : 'No research data available',
+      data: items.map(r => ({
+        id: r.researchId,
+        title: r.title,
+        category_label: r.categoryLabel,
+        url: r.url,
+        icon_url: r.iconUrl,
+        image_url: r.imageUrl,
+        compressed_image_url: r.compressedImageUrl,
+        description: r.description,
+        created: r.created,
+      }))
+    });
   } catch (error) {
     console.error('Error fetching research:', error.message);
     res.status(500).json({ error: 'Gagal mengambil research', detail: error.message });
