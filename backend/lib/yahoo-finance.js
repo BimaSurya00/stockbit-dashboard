@@ -73,30 +73,11 @@ async function fetchStockData(symbol, days = 365) {
   }
 }
 
-async function fetchVolumeForSymbol(symbol, days = 365) {
-  const data = await fetchStockData(symbol, days);
-  
-  const volumeMap = {};
-  data.forEach(d => {
-    if (d.volume && d.volume > 0) {
-      volumeMap[d.date] = {
-        volume: d.volume,
-        open: d.open,
-        high: d.high,
-        low: d.low
-      };
-    }
-  });
-
-  return volumeMap;
-}
-
 function clearCache() {
   cache.clear();
 }
 
 module.exports = {
   fetchStockData,
-  fetchVolumeForSymbol,
   clearCache
 };

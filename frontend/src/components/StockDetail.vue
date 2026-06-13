@@ -32,6 +32,31 @@ const timeframes = [
   { value: '5y', label: '5Y' }
 ]
 
+// Stockbit info (real-time volume + company data)
+const stockInfo = ref(null)
+const infoLoading = ref(false)
+const infoError = ref('')
+
+async function fetchInfo() {
+  if (!props.symbol) return
+  infoLoading.value = true; infoError.value = ''; stockInfo.value = null
+  try {
+    const { data } = await axios.get(`${API_BASE}/api/emiten/${props.symbol}/info`)
+    stockInfo.value = data
+  } catch (err) {
+    if (err.response?.status === 404) return // Not critical
+    infoError.value = err.response?.data?.error || err.message
+  } finally { infoLoading.value = false }
+}
+
+function formatVolume(vol) {
+  if (!vol) return '-'
+  if (vol >= 1e9) return (vol / 1e9).toFixed(2) + 'B'
+  if (vol >= 1e6) return (vol / 1e6).toFixed(2) + 'M'
+  if (vol >= 1e3) return (vol / 1e3).toFixed(2) + 'K'
+  return vol.toLocaleString('id-ID')
+}
+
 // Separate overlay and oscillator indicators
 const overlayIndicators = computed(() => {
   return indicatorData.value.filter(d => d.config && d.config.overlay && !d.error)
@@ -39,6 +64,12 @@ const overlayIndicators = computed(() => {
 
 const oscillatorIndicators = computed(() => {
   return indicatorData.value.filter(d => d.config && !d.config.overlay && !d.error)
+})
+
+const volumeRatioClass = computed(() => {
+  if (!stockInfo.value?.volume || !stockInfo.value?.averageVolume) return ''
+  const ratio = stockInfo.value.volume / stockInfo.value.averageVolume
+  return ratio > 1.5 ? 'above' : 'normal'
 })
 
 async function fetchChart() {
@@ -110,9 +141,10 @@ function onIndicatorsChange(indicators) {
   fetchIndicators()
 }
 
-watch(() => props.symbol, (s) => { if (s) { fetchChart(); fetchIndicators() } })
+watch(() => props.symbol, (s) => { if (s) { fetchChart(); fetchInfo(); fetchIndicators() } })
 watch(timeframe, () => { fetchChart(); fetchIndicators() })
 fetchChart()
+fetchInfo()
 </script>
 
 <template>
@@ -137,6 +169,54 @@ fetchChart()
     </div>
 
     <div v-if="chartError" class="error-msg">{{ chartError }}</div>
+    <div v-if="infoError" class="error-msg">{{ infoError }}</div>
+
+    <!-- Info Card: Company + Volume (from Stockbit) -->
+    <div v-if="stockInfo" class="info-grid">
+      <div class="info-card company-card">
+        <div class="info-header">
+          <img v-if="stockInfo.iconUrl" :src="stockInfo.iconUrl" class="company-icon" alt="" />
+          <div>
+            <div class="company-name">{{ stockInfo.name || symbol }}</div>
+            <div class="company-sector">{{ stockInfo.sector }}{{ stockInfo.subSector ? ' \u00B7 ' + stockInfo.subSector : '' }}</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="info-card price-card" :class="(stockInfo.change || 0) >= 0 ? 'up' : 'down'">
+        <div class="info-label">Harga</div>
+        <div class="info-value">Rp {{ (stockInfo.price || 0).toLocaleString('id-ID') }}</div>
+        <div class="info-change">
+          {{ stockInfo.change ? (stockInfo.change >= 0 ? '+' : '') + stockInfo.change : '-' }}
+          {{ stockInfo.percentage ? '(' + (stockInfo.percentage >= 0 ? '+' : '') + stockInfo.percentage + '%)' : '' }}
+        </div>
+      </div>
+
+      <div class="info-card">
+        <div class="info-label">Volume</div>
+        <div class="info-value">{{ formatVolume(stockInfo.volume) }}</div>
+        <div v-if="stockInfo.averageVolume" class="info-sub">
+          Rata-rata {{ formatVolume(stockInfo.averageVolume) }}
+          <span v-if="stockInfo.volume && stockInfo.averageVolume > 0" :class="volumeRatioClass">
+            {{ (stockInfo.volume / stockInfo.averageVolume).toFixed(1) }}x
+          </span>
+        </div>
+      </div>
+
+      <div class="info-card" v-if="stockInfo.orderbook">
+        <div class="info-label">Orderbook</div>
+        <div class="ob-row">
+          <span class="ob-label">Bid</span>
+          <span class="ob-bid">Rp {{ stockInfo.orderbook.bid.price.toLocaleString('id-ID') }}</span>
+          <span class="ob-vol">{{ formatVolume(stockInfo.orderbook.bid.volume) }}</span>
+        </div>
+        <div class="ob-row">
+          <span class="ob-label">Offer</span>
+          <span class="ob-offer">Rp {{ stockInfo.orderbook.offer.price.toLocaleString('id-ID') }}</span>
+          <span class="ob-vol">{{ formatVolume(stockInfo.orderbook.offer.volume) }}</span>
+        </div>
+      </div>
+    </div>
 
     <!-- Content Layout: Sidebar + Main -->
     <div class="detail-layout">
@@ -216,6 +296,43 @@ fetchChart()
   font-size: 28px; font-weight: 800; margin: 0; letter-spacing: -1px; color: var(--text);
 }
 .page-subtitle { font-size: 13px; color: var(--text2); font-weight: 500; }
+
+/* Info Grid */
+.info-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 14px;
+  margin-bottom: 20px;
+}
+.info-card {
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: var(--radius); padding: 18px 20px;
+  box-shadow: var(--shadow);
+}
+.info-card.up { border-left: 3px solid var(--green); }
+.info-card.down { border-left: 3px solid var(--red); }
+.info-label { font-size: 11px; font-weight: 600; color: var(--text3); text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 6px; }
+.info-value { font-family: 'DM Sans', 'Inter', sans-serif; font-size: 22px; font-weight: 800; color: var(--text); }
+.info-change { font-size: 13px; font-weight: 600; margin-top: 4px; }
+.info-card.up .info-change { color: var(--green); }
+.info-card.down .info-change { color: var(--red); }
+.info-sub { font-size: 12px; color: var(--text2); margin-top: 4px; display: flex; align-items: center; gap: 6px; }
+.info-sub span { font-weight: 700; padding: 1px 8px; border-radius: 100px; font-size: 11px; }
+.info-sub span.above { background: rgba(239,58,58,0.08); color: var(--red); }
+.info-sub span.normal { background: rgba(33,191,115,0.08); color: var(--green); }
+
+.company-card { grid-column: 1 / -1; }
+@media (min-width: 900px) { .company-card { grid-column: span 2; } }
+.info-header { display: flex; align-items: center; gap: 14px; }
+.company-icon { width: 44px; height: 44px; border-radius: 12px; object-fit: contain; background: var(--bg); }
+.company-name { font-family: 'DM Sans', 'Inter', sans-serif; font-size: 18px; font-weight: 800; color: var(--text); }
+.company-sector { font-size: 12px; color: var(--text2); margin-top: 2px; }
+
+.ob-row { display: flex; align-items: center; gap: 10px; padding: 4px 0; font-size: 12px; }
+.ob-label { width: 40px; font-weight: 700; color: var(--text2); }
+.ob-bid { color: var(--green); font-weight: 600; flex: 1; }
+.ob-offer { color: var(--red); font-weight: 600; flex: 1; }
+.ob-vol { color: var(--text2); font-weight: 500; }
 
 /* Timeframe Pills */
 .timeframe-pills { display: flex; gap: 4px; background: #F1F5F9; border-radius: 100px; padding: 4px; }

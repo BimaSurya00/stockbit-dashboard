@@ -15,8 +15,6 @@ import FinancialReports from './FinancialReports.vue'
 import QuickAnalysis from './QuickAnalysis.vue'
 import BrokerFlow from './BrokerFlow.vue'
 import BrokerPage from './BrokerPage.vue'
-import VolumeAnalysis from './VolumeAnalysis.vue'
-import BackfillStatus from './BackfillStatus.vue'
 import SystemMonitor from './SystemMonitor.vue'
 import NewsView from './NewsView.vue'
 
@@ -76,7 +74,6 @@ const menuSections = [
     label: 'TOOLS',
     items: [
       { key: 'analysis', label: 'Quick Analysis', icon: 'chart' },
-      { key: 'volume', label: 'Volume Analysis', icon: 'activity' },
       { key: 'monitor', label: 'System Monitor', icon: 'settings' },
     ]
   },
@@ -114,7 +111,6 @@ const tabLabels = {
   news: 'Berita',
   financial: 'Laporan Keuangan',
   analysis: 'Quick Analysis',
-  volume: 'Volume Analysis',
   monitor: 'System Monitor',
   users: 'Manage Users'
 }
@@ -334,11 +330,6 @@ function toggleSidebar() {
         <!-- Quick Analysis -->
         <div v-if="activeTab === 'analysis'">
           <QuickAnalysis />
-        </div>
-
-        <!-- Volume Analysis -->
-        <div v-if="activeTab === 'volume'">
-          <VolumeAnalysis />
         </div>
 
         <!-- System Monitor -->

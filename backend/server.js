@@ -19,8 +19,7 @@ const { seedEmiten } = require('./seeds/emitenSeed');
 const { seedAdmin } = require('./seeds/adminSeed');
 const { generateToken, authMiddleware, adminMiddleware, JWT_SECRET } = require('./middleware/auth');
 
-// Yahoo Finance
-const { fetchVolumeForSymbol } = require('./lib/yahoo-finance');
+// Yahoo Finance (used for candlestick chart only, imported inline)
 
 // Connect to MongoDB
 connectDB();
@@ -537,6 +536,48 @@ app.get('/api/emiten/trending', async (req, res) => {
   }
 });
 
+// --- Stockbit emiten info (real-time volume + company data) ---
+app.get('/api/emiten/:symbol/info', async (req, res) => {
+  try {
+    const { symbol } = req.params;
+    const client = getStockbitClient();
+    const response = await client.get(`/emitten/${symbol}/info`);
+    const data = response.data?.data;
+
+    if (!data) {
+      return res.status(404).json({ error: 'Data tidak ditemukan untuk ' + symbol });
+    }
+
+    res.json({
+      symbol: data.symbol,
+      name: data.name,
+      sector: data.sector,
+      subSector: data.sub_sector,
+      price: data.price ? parseFloat(data.price) : null,
+      previous: data.previous ? parseFloat(data.previous) : null,
+      change: data.change || null,
+      percentage: data.percentage || null,
+      volume: data.volume ? parseInt(data.volume) : null,
+      averageVolume: data.average ? parseInt(data.average) : null,
+      high: null,
+      low: null,
+      open: null,
+      orderbook: data.orderbook ? {
+        bid: { price: parseFloat(data.orderbook.bid.price), volume: parseFloat(data.orderbook.bid.volume) },
+        offer: { price: parseFloat(data.orderbook.offer.price), volume: parseFloat(data.orderbook.offer.volume) }
+      } : null,
+      iconUrl: data.icon_url || null,
+      updatedAt: data.updated || null
+    });
+  } catch (error) {
+    if (error.response?.status === 404) {
+      return res.status(404).json({ error: 'Data tidak ditemukan untuk ' + symbol });
+    }
+    console.error('[INFO] Error fetching emiten info:', error.message);
+    res.status(500).json({ error: 'Gagal mengambil data emiten', detail: error.message });
+  }
+});
+
 // Get emiten by symbol
 app.get('/api/emiten/:symbol', async (req, res) => {
   try {
@@ -797,9 +838,7 @@ app.get('/api/chart/:symbol', checkTokenMiddleware, async (req, res) => {
     if (chartData?.data?.prices && chartData.data.prices.length > 0) {
       const latestPrice = chartData.data.prices[chartData.data.prices.length - 1];
       
-      const hasVolume = chartData.data.prices.some(p => p.volume && parseFloat(p.volume) > 0);
-      
-      let pricesWithVolume = chartData.data.prices.map(p => ({
+      const pricesData = chartData.data.prices.map(p => ({
         date: p.date,
         formatted_date: p.formatted_date,
         value: p.value,
@@ -808,36 +847,12 @@ app.get('/api/chart/:symbol', checkTokenMiddleware, async (req, res) => {
         volume: p.volume ? parseFloat(p.volume) : undefined
       }));
 
-      if (!hasVolume) {
-        try {
-          const yahooData = await fetchVolumeForSymbol(symbol, 365);
-          
-          if (Object.keys(yahooData).length > 0) {
-            pricesWithVolume = pricesWithVolume.map(p => {
-              const dateKey = p.formatted_date || p.date;
-              if (yahooData[dateKey]) {
-                return {
-                  ...p,
-                  volume: yahooData[dateKey].volume,
-                  open: yahooData[dateKey].open,
-                  high: yahooData[dateKey].high,
-                  low: yahooData[dateKey].low
-                };
-              }
-              return p;
-            });
-          }
-        } catch (yahooErr) {
-          console.warn(`[YAHOO] Gagal fetch volume untuk ${symbol}:`, yahooErr.message);
-        }
-      }
-
       ChartPrice.findOneAndUpdate(
         { symbol: symbol.toUpperCase(), timeframe },
         {
           symbol: symbol.toUpperCase(),
           timeframe,
-          prices: pricesWithVolume,
+          prices: pricesData,
           previous: chartData.data.previous || 0,
           metadata: {
             lastPrice: latestPrice ? parseFloat(latestPrice.value) || 0 : 0,
@@ -1118,80 +1133,7 @@ app.get('/api/broker/history', async (req, res) => {
   }
 });
 
-// --- Volume Spike Detection ---
-app.get('/api/emiten/:symbol/volume-analysis', async (req, res) => {
-  try {
-    const { symbol } = req.params;
-    const { timeframe = '1y', lookback = 20, threshold = 2.0 } = req.query;
 
-    let chartData = await ChartPrice.findOne({
-      symbol: symbol.toUpperCase(),
-      timeframe
-    }).lean();
-
-    // Fallback ke 1y jika timeframe yang diminta tidak punya volume data
-    if (!chartData || !chartData.prices || chartData.prices.length === 0 || 
-        !chartData.prices.some(p => p.volume && p.volume > 0)) {
-      chartData = await ChartPrice.findOne({
-        symbol: symbol.toUpperCase(),
-        timeframe: '1y'
-      }).lean();
-    }
-
-    if (!chartData || !chartData.prices || chartData.prices.length === 0) {
-      return res.status(404).json({
-        error: 'Data tidak ditemukan',
-        detail: `Tidak ada data untuk ${symbol} dengan timeframe ${timeframe}`
-      });
-    }
-
-    const prices = chartData.prices;
-    const lookbackPeriod = parseInt(lookback) || 20;
-    const spikeThreshold = parseFloat(threshold) || 2.0;
-
-    const volumes = prices.map(p => p.volume ? parseFloat(p.volume) : 0);
-    const spikes = [];
-
-    for (let i = lookbackPeriod; i < prices.length; i++) {
-      const slice = volumes.slice(i - lookbackPeriod, i);
-      const avgVolume = slice.reduce((a, b) => a + b, 0) / slice.length;
-
-      if (avgVolume > 0 && volumes[i] > avgVolume * spikeThreshold) {
-        const prevPrice = i > 0 ? parseFloat(prices[i - 1].value) : null;
-        const currPrice = parseFloat(prices[i].value);
-        const priceChange = prevPrice ? ((currPrice - prevPrice) / prevPrice * 100) : null;
-
-        spikes.push({
-          date: prices[i].date,
-          formatted_date: prices[i].formatted_date,
-          volume: volumes[i],
-          averageVolume: Math.round(avgVolume),
-          spikeRatio: parseFloat((volumes[i] / avgVolume).toFixed(2)),
-          price: currPrice,
-          priceChange: priceChange ? parseFloat(priceChange.toFixed(2)) : null
-        });
-      }
-    }
-
-    const avgVolumeAll = volumes.reduce((a, b) => a + b, 0) / volumes.length;
-
-    res.json({
-      symbol: symbol.toUpperCase(),
-      timeframe: chartData.timeframe, // Return actual timeframe used
-      analysis: {
-        lookbackPeriod,
-        spikeThreshold,
-        totalDataPoints: prices.length,
-        averageVolume: Math.round(avgVolumeAll),
-        spikeCount: spikes.length,
-        spikes
-      }
-    });
-  } catch (error) {
-    console.error('Error volume analysis:', error.message);
-    res.status(500).json({ error: 'Gagal analisis volume', detail: error.message });
-  }
-});
 
 // --- Clear cache endpoint ---
 app.post('/api/clear-cache', (req, res) => {
@@ -1304,78 +1246,7 @@ app.get('/api/news/:streamId', async (req, res) => {
   } catch (error) { console.error('Error fetching news detail:', error.message); res.status(500).json({ error: 'Gagal mengambil detail news', detail: error.message }); }
 });
 
-// --- Yahoo Volume Backfill (uses WorkerJob) ---
-app.post('/api/admin/backfill-yahoo', authMiddleware, adminMiddleware, async (req, res) => {
-  try {
-    const WorkerJob = require('./models/WorkerJob');
-    const job = await WorkerJob.findOne({ worker: 'yahoo-volume' });
 
-    if (job && job.status === 'running') {
-      return res.json({
-        message: 'Backfill sedang berjalan',
-        progress: job.progress,
-        status: job.status,
-      });
-    }
-
-    const { fork } = require('child_process');
-    const path = require('path');
-    const workerPath = path.join(__dirname, 'workers', 'fetch-yahoo-volume.js');
-    fork(workerPath, [], { stdio: 'pipe' });
-
-    res.json({
-      success: true,
-      message: 'Backfill worker started. Monitor via /api/admin/backfill-status',
-    });
-  } catch (error) {
-    console.error('Error starting backfill:', error.message);
-    res.status(500).json({ error: 'Gagal start backfill', detail: error.message });
-  }
-});
-
-app.post('/api/admin/backfill-cancel', authMiddleware, adminMiddleware, async (req, res) => {
-  try {
-    const WorkerJob = require('./models/WorkerJob');
-    await WorkerJob.findOneAndUpdate(
-      { worker: 'yahoo-volume', status: 'running' },
-      { status: 'idle', message: 'Cancelled by user' }
-    );
-    res.json({ success: true, message: 'Backfill cancel requested' });
-  } catch (error) {
-    res.status(500).json({ error: 'Gagal cancel backfill', detail: error.message });
-  }
-});
-
-app.get('/api/admin/backfill-status', authMiddleware, adminMiddleware, async (req, res) => {
-  try {
-    const WorkerJob = require('./models/WorkerJob');
-    const Emiten = require('./models/Emiten');
-    const ChartPrice = require('./models/ChartPrice');
-
-    const job = await WorkerJob.findOne({ worker: 'yahoo-volume' });
-    const totalEmiten = await Emiten.countDocuments({ isActive: true });
-    const withVolume = await ChartPrice.countDocuments({
-      timeframe: '1y',
-      'prices.volume': { $exists: true, $gt: 0 },
-    });
-
-    res.json({
-      isRunning: job?.status === 'running',
-      status: job?.status || 'never_run',
-      progress: job?.progress || { current: 0, total: totalEmiten },
-      message: job?.message || '',
-      lastRun: job?.lastRun,
-      stats: {
-        totalEmiten,
-        emitensWithVolume: withVolume,
-        percentComplete: totalEmiten > 0 ? Math.round((withVolume / totalEmiten) * 100) : 0,
-      },
-    });
-  } catch (error) {
-    console.error('Error cek backfill status:', error.message);
-    res.status(500).json({ error: 'Gagal cek status' });
-  }
-});
 
 
 async function startup() {
