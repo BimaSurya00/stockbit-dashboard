@@ -1252,13 +1252,17 @@ const EIPO_BASE = 'https://api.trading.stockbit.com';
 app.get('/api/ipo/list', async (req, res) => {
   try {
     const { filter = 'ongoing' } = req.query;
+    const ipoHeaders = {
+      'Accept': 'application/json',
+      'Origin': 'https://stockbit.com',
+      'Referer': 'https://stockbit.com/'
+    };
+    if (currentToken) {
+      ipoHeaders['Authorization'] = `Bearer ${currentToken}`;
+    }
     const response = await axios.get(`${EIPO_BASE}/eipo/social/company/list`, {
       params: { filter },
-      headers: {
-        'Accept': 'application/json',
-        'Origin': 'https://stockbit.com',
-        'Referer': 'https://stockbit.com/'
-      },
+      headers: ipoHeaders,
       timeout: 10000
     });
     res.json(response.data);
