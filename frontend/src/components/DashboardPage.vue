@@ -17,6 +17,7 @@ import BrokerFlow from './BrokerFlow.vue'
 import BrokerPage from './BrokerPage.vue'
 import SystemMonitor from './SystemMonitor.vue'
 import NewsView from './NewsView.vue'
+import IpoView from './IpoView.vue'
 
 const router = useRouter()
 
@@ -68,6 +69,7 @@ const menuSections = [
       { key: 'broker', label: 'Broker', icon: 'broker' },
       { key: 'financial', label: 'Laporan Keuangan', icon: 'file-text' },
       { key: 'news', label: 'Berita', icon: 'file-text' },
+      { key: 'ipo', label: 'IPO', icon: 'activity' },
     ]
   },
   {
@@ -109,6 +111,7 @@ const tabLabels = {
   emiten: 'Daftar Emiten',
   broker: 'Broker',
   news: 'Berita',
+  ipo: 'IPO',
   financial: 'Laporan Keuangan',
   analysis: 'Quick Analysis',
   monitor: 'System Monitor',
@@ -345,6 +348,11 @@ function toggleSidebar() {
         <!-- News -->
         <div v-if="activeTab === 'news'">
           <NewsView />
+        </div>
+
+        <!-- IPO -->
+        <div v-if="activeTab === 'ipo'">
+          <IpoView />
         </div>
 
         <!-- Manage Users (admin only) -->

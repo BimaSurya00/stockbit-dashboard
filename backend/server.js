@@ -1246,7 +1246,30 @@ app.get('/api/news/:streamId', async (req, res) => {
   } catch (error) { console.error('Error fetching news detail:', error.message); res.status(500).json({ error: 'Gagal mengambil detail news', detail: error.message }); }
 });
 
+// --- IPO Endpoint ---
+const EIPO_BASE = 'https://api.trading.stockbit.com';
 
+app.get('/api/ipo/list', async (req, res) => {
+  try {
+    const { filter = 'ongoing' } = req.query;
+    const response = await axios.get(`${EIPO_BASE}/eipo/social/company/list`, {
+      params: { filter },
+      headers: {
+        'Accept': 'application/json',
+        'Origin': 'https://stockbit.com',
+        'Referer': 'https://stockbit.com/'
+      },
+      timeout: 10000
+    });
+    res.json(response.data);
+  } catch (error) {
+    console.error('[IPO] Error fetching list:', error.message);
+    if (error.response?.status === 404) {
+      return res.json({ data: [] });
+    }
+    res.status(500).json({ error: 'Gagal mengambil data IPO', detail: error.message });
+  }
+});
 
 
 async function startup() {
