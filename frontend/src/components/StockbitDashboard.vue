@@ -163,21 +163,12 @@ async function fetchRunningTrades() {
 async function fetchHighlights() {
   for (const sym of highlightSymbols) {
     try {
-      let prices = []
-
-      // Try MongoDB cache first
-      try {
-        const mongoRes = await axios.get(`${API_BASE}/api/prices/${sym}`, {
-          params: { timeframe: '1w' }
-        })
-        prices = mongoRes.data?.data?.prices || []
-      } catch (_) {
-        // Fallback to Stockbit
-        const res = await axios.get(`${API_BASE}/api/chart/${sym}`, {
-          params: { timeframe: '1w', _t: Date.now() }
-        })
-        prices = res.data?.data?.prices || []
-      }
+      // Always fetch live from Stockbit (skip MongoDB cache)
+      const res = await axios.get(`${API_BASE}/api/chart/${sym}`, {
+        params: { timeframe: '1d', _t: Date.now() },
+        headers: { 'Cache-Control': 'no-cache', 'Pragma': 'no-cache' }
+      })
+      const prices = res.data?.data?.prices || []
 
       const vals = prices.map(p => parseFloat(p.value) || 0).filter(v => v > 0)
       const latest = vals[vals.length - 1] || 0
