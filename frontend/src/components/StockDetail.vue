@@ -76,20 +76,24 @@ async function fetchChart() {
   if (!props.symbol) return
   chartLoading.value = true; chartError.value = ''; chartData.value = null
   try {
-    // Try MongoDB cache first
-    try {
-      const mongoRes = await axios.get(`${API_BASE}/api/prices/${props.symbol}`, {
-        params: { timeframe: timeframe.value }
-      })
-      if (mongoRes.data?.data) {
-        chartData.value = mongoRes.data
-        return
+    // Skip MongoDB cache for short timeframes — always get live data from Stockbit
+    const skipCache = ['1d', '1w'].includes(timeframe.value)
+    if (!skipCache) {
+      // Try MongoDB cache first
+      try {
+        const mongoRes = await axios.get(`${API_BASE}/api/prices/${props.symbol}`, {
+          params: { timeframe: timeframe.value }
+        })
+        if (mongoRes.data?.data) {
+          chartData.value = mongoRes.data
+          return
+        }
+      } catch (mongoErr) {
+        // MongoDB miss — fallback to Stockbit proxy
       }
-    } catch (mongoErr) {
-      // MongoDB miss — fallback to Stockbit proxy
     }
 
-    // Fallback to Stockbit API
+    // Live from Stockbit API
     const res = await axios.get(`${API_BASE}/api/chart/${props.symbol}`, {
       params: { timeframe: timeframe.value, _t: Date.now() },
       headers: { 'Cache-Control': 'no-cache', 'Pragma': 'no-cache' }
