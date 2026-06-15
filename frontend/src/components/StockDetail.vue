@@ -207,12 +207,12 @@ fetchInfo()
         <div class="info-label">Orderbook</div>
         <div class="ob-row">
           <span class="ob-label">Bid</span>
-          <span class="ob-bid">Rp {{ stockInfo.orderbook.bid.price.toLocaleString('id-ID') }}</span>
+          <span class="ob-bid">Rp {{ stockInfo.orderbook.bid.price != null ? stockInfo.orderbook.bid.price.toLocaleString('id-ID') : '-' }}</span>
           <span class="ob-vol">{{ formatVolume(stockInfo.orderbook.bid.volume) }}</span>
         </div>
         <div class="ob-row">
           <span class="ob-label">Offer</span>
-          <span class="ob-offer">Rp {{ stockInfo.orderbook.offer.price.toLocaleString('id-ID') }}</span>
+          <span class="ob-offer">Rp {{ stockInfo.orderbook.offer.price != null ? stockInfo.orderbook.offer.price.toLocaleString('id-ID') : '-' }}</span>
           <span class="ob-vol">{{ formatVolume(stockInfo.orderbook.offer.volume) }}</span>
         </div>
       </div>

@@ -138,6 +138,11 @@ async function main() {
 
     await updateStatus('running', 'Fetching news dari Stockbit...');
 
+    // Get latest streamId in DB before fetching
+    const latestInDB = await News.findOne().sort({ streamId: -1 }).select('streamId').lean();
+    const maxStreamId = latestInDB?.streamId || 0;
+    let hadNewNews = false;
+
     let cursor = 0;
     let totalSaved = 0;
     let pageCount = 0;
@@ -159,6 +164,16 @@ async function main() {
 
       console.log(`[SAVED] ${saved} news items`);
       await updateStatus('running', `Page ${pageCount}: ${totalSaved} news tersimpan`);
+
+      // After page 1: skip remaining pages if no news newer than DB max
+      if (!hadNewNews && pageCount === 1) {
+        const pageMaxId = data.data.stream[0].stream_id;
+        if (pageMaxId <= maxStreamId) {
+          console.log('[INFO] No new news since last run, skipping remaining pages');
+          break;
+        }
+        hadNewNews = true;
+      }
 
       if (data.data.pagination?.is_last_page) {
         console.log('[INFO] Last page reached');

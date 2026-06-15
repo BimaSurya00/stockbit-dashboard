@@ -563,8 +563,8 @@ app.get('/api/emiten/:symbol/info', async (req, res) => {
       low: null,
       open: null,
       orderbook: data.orderbook ? {
-        bid: { price: parseFloat(data.orderbook.bid.price), volume: parseFloat(data.orderbook.bid.volume) },
-        offer: { price: parseFloat(data.orderbook.offer.price), volume: parseFloat(data.orderbook.offer.volume) }
+        bid: { price: data.orderbook.bid.price ? parseFloat(data.orderbook.bid.price) : null, volume: data.orderbook.bid.volume ? parseFloat(data.orderbook.bid.volume) : null },
+        offer: { price: data.orderbook.offer.price ? parseFloat(data.orderbook.offer.price) : null, volume: data.orderbook.offer.volume ? parseFloat(data.orderbook.offer.volume) : null }
       } : null,
       iconUrl: data.icon_url || null,
       updatedAt: data.updated || null
