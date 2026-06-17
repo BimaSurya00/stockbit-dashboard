@@ -4,7 +4,7 @@ const snapshotSchema = new mongoose.Schema({
   type: {
     type: String,
     required: true,
-    enum: ['trending', 'top_gainer', 'top_loser', 'top_value', 'ihsg']
+    enum: ['trending', 'top_gainer', 'top_loser', 'top_value', 'top_volume', 'ihsg']
   },
   data: {
     type: mongoose.Schema.Types.Mixed,

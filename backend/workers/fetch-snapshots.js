@@ -124,7 +124,8 @@ async function fetchMovers(type) {
     });
     const snapType = type === 'MOVER_TYPE_TOP_GAINER' ? 'top_gainer'
       : type === 'MOVER_TYPE_TOP_LOSER' ? 'top_loser'
-      : 'top_value';
+      : type === 'MOVER_TYPE_TOP_VALUE' ? 'top_value'
+      : 'top_volume';
     await saveSnapshot(snapType, res.data);
     const count = res.data?.data?.mover_list?.length || '?';
     return `✓ ${count} entries`;
@@ -162,6 +163,7 @@ async function main() {
     results.push(['Gainer   ', await fetchMovers('MOVER_TYPE_TOP_GAINER')]);
     results.push(['Loser    ', await fetchMovers('MOVER_TYPE_TOP_LOSER')]);
     results.push(['Value    ', await fetchMovers('MOVER_TYPE_TOP_VALUE')]);
+    results.push(['Volume   ', await fetchMovers('MOVER_TYPE_TOP_VOLUME')]);
 
     for (const [label, result] of results) {
       console.log(`  ${label} ${result}`);

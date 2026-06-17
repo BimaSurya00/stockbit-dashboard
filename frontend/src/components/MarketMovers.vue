@@ -63,13 +63,17 @@ const paginatedStocks = computed(() => {
 
 const moverMeta = computed(() => rawData.value?.data || null)
 
+let fetchGen = 0
+
 async function fetchData() {
+  const gen = ++fetchGen
   loading.value = true; error.value = ''; rawData.value = null
   try {
     const res = await axios.get(`${API_BASE}/api/market-movers`, {
       params: { type: activeTab.value, _t: Date.now() },
       headers: { 'Cache-Control': 'no-cache', 'Pragma': 'no-cache' }
     })
+    if (gen !== fetchGen) return // stale response — ignore
     rawData.value = res.data
   } catch (err) {
     error.value = err.response?.data?.error || err.message
