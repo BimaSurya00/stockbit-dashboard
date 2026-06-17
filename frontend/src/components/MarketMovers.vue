@@ -88,8 +88,9 @@ async function fetchData() {
 }
 
 function switchTab(tab) {
-  if (tab === activeTab.value) return
-  activeTab.value = tab
+  const key = tab.key || tab
+  if (key === activeTab.value) return
+  activeTab.value = key
   currentPage.value = 1
   searchQuery.value = ''
   fetchData()
