@@ -8,8 +8,6 @@ const emit = defineEmits(['select-emiten'])
 const moverTabs = [
   { key: 'MOVER_TYPE_TOP_GAINER', label: 'Gainer', icon: '▲' },
   { key: 'MOVER_TYPE_TOP_LOSER', label: 'Loser', icon: '▼' },
-  { key: 'MOVER_TYPE_TOP_VALUE', label: 'Value', icon: 'Rp' },
-  { key: 'MOVER_TYPE_TOP_VOLUME', label: 'Volume', icon: '◉' },
 ]
 
 const activeTab = ref('MOVER_TYPE_TOP_GAINER')

@@ -927,35 +927,14 @@ app.get('/api/ihsg', async (req, res) => {
   }
 });
 
-// --- Proxy endpoint: Market Movers ---
+// --- Proxy endpoint: Market Movers (always live from Stockbit) ---
 app.get('/api/market-movers', async (req, res) => {
   const { type = 'MOVER_TYPE_TOP_GAINER' } = req.query;
-  const snapType = type === 'MOVER_TYPE_TOP_GAINER' ? 'top_gainer'
-    : type === 'MOVER_TYPE_TOP_LOSER' ? 'top_loser'
-    : type === 'MOVER_TYPE_TOP_VOLUME' ? 'top_volume' : 'top_value';
-  const cacheKey = `market_movers_${type}`;
 
   try {
-    // Quick in-memory cache check (30s) — faster than MongoDB query
-    const memCached = cache.get(cacheKey);
-    if (memCached && (Date.now() - memCached.timestamp < 30 * 1000)) {
-      return res.json(memCached.data);
-    }
-
-    // Try MongoDB snapshot next (5 min TTL)
-    const cached = await Snapshot.findOne({ type: snapType })
-      .sort({ createdAt: -1 }).lean();
-
-    if (cached && (Date.now() - new Date(cached.createdAt).getTime() < 5 * 60 * 1000)) {
-      return res.json(cached.data);
-    }
-
-    // Fallback to Stockbit API
     const token = process.env.STOCKBIT_TOKEN;
     if (!token) {
-      const stale = await Snapshot.findOne({ type: snapType }).sort({ createdAt: -1 }).lean();
-      if (stale) return res.json(stale.data);
-      return res.status(503).json({ error: 'No cached data and no token configured' });
+      return res.status(503).json({ error: 'No token configured' });
     }
 
     const client = getStockbitClient();
@@ -973,23 +952,8 @@ app.get('/api/market-movers', async (req, res) => {
       paramsSerializer: (p) => { const qs = require('qs'); return qs.stringify(p, { arrayFormat: 'repeat' }); }
     });
 
-    // Atomically upsert to MongoDB (no race window between delete + create)
-    await Snapshot.findOneAndUpdate(
-      { type: snapType },
-      { type: snapType, data: response.data, createdAt: new Date() },
-      { upsert: true }
-    );
-
-    cache.set(cacheKey, { data: response.data, timestamp: Date.now() });
     res.json(response.data);
   } catch (error) {
-    // Return stale data on error
-    try {
-      const stale = await Snapshot.findOne({ type: snapType })
-        .sort({ createdAt: -1 }).lean();
-      if (stale) return res.json(stale.data);
-    } catch (_) { }
-
     console.error('Error fetch market movers:', error.message);
     if (error.response?.status === 401) {
       return res.status(401).json({ error: 'Unauthorized' });
