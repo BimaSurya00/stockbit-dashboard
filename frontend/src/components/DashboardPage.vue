@@ -18,6 +18,7 @@ import BrokerPage from './BrokerPage.vue'
 import SystemMonitor from './SystemMonitor.vue'
 import NewsView from './NewsView.vue'
 import IpoView from './IpoView.vue'
+import MarketMovers from './MarketMovers.vue'
 
 const router = useRouter()
 
@@ -67,6 +68,7 @@ const menuSections = [
     items: [
       { key: 'emiten', label: 'Daftar Emiten', icon: 'list' },
       { key: 'broker', label: 'Broker', icon: 'broker' },
+      { key: 'movers', label: 'Movers', icon: 'activity' },
       { key: 'financial', label: 'Laporan Keuangan', icon: 'file-text' },
       { key: 'news', label: 'Berita', icon: 'file-text' },
       { key: 'ipo', label: 'IPO', icon: 'activity' },
@@ -112,6 +114,7 @@ const tabLabels = {
   broker: 'Broker',
   news: 'Berita',
   ipo: 'IPO',
+  movers: 'Market Movers',
   financial: 'Laporan Keuangan',
   analysis: 'Quick Analysis',
   monitor: 'System Monitor',
@@ -353,6 +356,11 @@ function toggleSidebar() {
         <!-- IPO -->
         <div v-if="activeTab === 'ipo'">
           <IpoView />
+        </div>
+
+        <!-- Movers -->
+        <div v-if="activeTab === 'movers'">
+          <MarketMovers @select-emiten="goToDetail" />
         </div>
 
         <!-- Manage Users (admin only) -->

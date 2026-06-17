@@ -931,7 +931,8 @@ app.get('/api/ihsg', async (req, res) => {
 app.get('/api/market-movers', async (req, res) => {
   const { type = 'MOVER_TYPE_TOP_GAINER' } = req.query;
   const snapType = type === 'MOVER_TYPE_TOP_GAINER' ? 'top_gainer'
-    : type === 'MOVER_TYPE_TOP_LOSER' ? 'top_loser' : 'top_value';
+    : type === 'MOVER_TYPE_TOP_LOSER' ? 'top_loser'
+    : type === 'MOVER_TYPE_TOP_VOLUME' ? 'top_volume' : 'top_value';
 
   try {
     // Try MongoDB snapshot first
