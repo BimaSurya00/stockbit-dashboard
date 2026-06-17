@@ -932,24 +932,21 @@ app.get('/api/market-movers', async (req, res) => {
   const { type = 'MOVER_TYPE_TOP_GAINER' } = req.query;
 
   try {
-    const token = process.env.STOCKBIT_TOKEN;
-    if (!token) {
+    if (!currentToken) {
       return res.status(503).json({ error: 'No token configured' });
     }
 
-    const client = getStockbitClient();
-    const response = await client.get('/order-trade/market-mover', {
-      params: {
-        mover_type: type,
-        filter_stocks: [
-          'FILTER_STOCKS_TYPE_MAIN_BOARD',
-          'FILTER_STOCKS_TYPE_DEVELOPMENT_BOARD',
-          'FILTER_STOCKS_TYPE_ACCELERATION_BOARD',
-          'FILTER_STOCKS_TYPE_NEW_ECONOMY_BOARD'
-        ],
-        _t: Date.now()
+    const url = `${STOCKBIT_BASE}/order-trade/market-mover?mover_type=${encodeURIComponent(type)}&filter_stocks=FILTER_STOCKS_TYPE_MAIN_BOARD&filter_stocks=FILTER_STOCKS_TYPE_DEVELOPMENT_BOARD&filter_stocks=FILTER_STOCKS_TYPE_ACCELERATION_BOARD&filter_stocks=FILTER_STOCKS_TYPE_NEW_ECONOMY_BOARD`;
+
+    console.log('[MarketMovers] fetching:', url.replace(currentToken, 'TOKEN'));
+
+    const response = await axios.get(url, {
+      headers: {
+        'Authorization': `Bearer ${currentToken}`,
+        'User-Agent': process.env.USER_AGENT || 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36',
+        'Accept': 'application/json'
       },
-      paramsSerializer: (p) => { const qs = require('qs'); return qs.stringify(p, { arrayFormat: 'repeat' }); }
+      timeout: 10000
     });
 
     res.json(response.data);
