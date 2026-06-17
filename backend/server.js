@@ -933,9 +933,16 @@ app.get('/api/market-movers', async (req, res) => {
   const snapType = type === 'MOVER_TYPE_TOP_GAINER' ? 'top_gainer'
     : type === 'MOVER_TYPE_TOP_LOSER' ? 'top_loser'
     : type === 'MOVER_TYPE_TOP_VOLUME' ? 'top_volume' : 'top_value';
+  const cacheKey = `market_movers_${type}`;
 
   try {
-    // Try MongoDB snapshot first
+    // Quick in-memory cache check (30s) — faster than MongoDB query
+    const memCached = cache.get(cacheKey);
+    if (memCached && (Date.now() - memCached.timestamp < 30 * 1000)) {
+      return res.json(memCached.data);
+    }
+
+    // Try MongoDB snapshot next (5 min TTL)
     const cached = await Snapshot.findOne({ type: snapType })
       .sort({ createdAt: -1 }).lean();
 
@@ -966,11 +973,14 @@ app.get('/api/market-movers', async (req, res) => {
       paramsSerializer: (p) => { const qs = require('qs'); return qs.stringify(p, { arrayFormat: 'repeat' }); }
     });
 
-    // Save to MongoDB
-    await Snapshot.deleteMany({ type: snapType });
-    await Snapshot.create({ type: snapType, data: response.data });
+    // Atomically upsert to MongoDB (no race window between delete + create)
+    await Snapshot.findOneAndUpdate(
+      { type: snapType },
+      { type: snapType, data: response.data, createdAt: new Date() },
+      { upsert: true }
+    );
 
-    cache.set(`market_movers_${type}`, { data: response.data, timestamp: Date.now() });
+    cache.set(cacheKey, { data: response.data, timestamp: Date.now() });
     res.json(response.data);
   } catch (error) {
     // Return stale data on error

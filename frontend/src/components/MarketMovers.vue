@@ -67,16 +67,23 @@ let fetchGen = 0
 
 async function fetchData() {
   const gen = ++fetchGen
+  const tab = activeTab.value
+  console.log(`[MarketMovers] fetch #${gen} started for ${tab}`)
   loading.value = true; error.value = ''; rawData.value = null
   try {
     const res = await axios.get(`${API_BASE}/api/market-movers`, {
-      params: { type: activeTab.value, _t: Date.now() },
+      params: { type: tab, _t: Date.now() },
       headers: { 'Cache-Control': 'no-cache', 'Pragma': 'no-cache' }
     })
-    if (gen !== fetchGen) return // stale response — ignore
+    if (gen !== fetchGen) {
+      console.log(`[MarketMovers] fetch #${gen} stale (current #${fetchGen}) — discarded`)
+      return
+    }
     rawData.value = res.data
+    console.log(`[MarketMovers] fetch #${gen} OK — ${res.data?.data?.mover_list?.length || 0} stocks`)
   } catch (err) {
     error.value = err.response?.data?.error || err.message
+    console.log(`[MarketMovers] fetch #${gen} ERROR:`, error.value)
   } finally {
     loading.value = false
   }
@@ -175,7 +182,7 @@ onMounted(fetchData)
     </div>
 
     <!-- Card Grid -->
-    <div v-else class="stock-grid">
+    <div v-else class="stock-grid" :key="activeTab">
       <div v-for="stock in paginatedStocks" :key="stock.symbol"
         class="stock-card" @click="selectStock(stock.symbol)">
 

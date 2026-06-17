@@ -55,7 +55,7 @@ function getClient() {
   return axios.create({
     baseURL: STOCKBIT_BASE,
     headers: {
-      'Authorization': token,
+      'Authorization': `Bearer ${token}`,
       'User-Agent': process.env.USER_AGENT || 'StockbitDashboard/1.0',
       'Accept': 'application/json'
     },
