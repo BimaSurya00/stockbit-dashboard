@@ -84,17 +84,19 @@ KONTEKS DATA SAAT INI:\n`;
   if (context.symbol) {
     prompt += `\nEmiten: ${context.symbol}\n`;
 
-    prompt += `
-INDIKATOR TEKNIKAL TERSEDIA (di halaman Chart):
-Dashboard ini memiliki 20+ indikator teknikal:
-- Overlay: SMA, EMA, WMA, Bollinger Bands, Parabolic SAR, VWAP, Ichimoku Cloud, Keltner Channels
-- Momentum: RSI, MACD, Stochastic, Stochastic RSI, CCI, ROC, Williams %R, TRIX, KST
-- Trend: ADX
-- Volatilitas: ATR, Bollinger Bands, Keltner Channels
-- Volume: Volume MA, OBV, MFI
-Jika user bertanya tentang analisa teknikal, arahkan mereka ke halaman Chart di dashboard
-untuk melihat indikator-indikator tersebut secara visual.
-`;
+    if (context.technicalIndicators) {
+      const ti = context.technicalIndicators;
+      prompt += `\nDATA TEKNIKAL (live dari chart harian):\n`;
+      prompt += `- Harga terakhir: ${ti.lastPrice}\n`;
+      prompt += `- SMA20: ${ti.sma20} | SMA50: ${ti.sma50} | EMA20: ${ti.ema20}\n`;
+      if (ti.sma200) prompt += `- SMA200: ${ti.sma200}\n`;
+      prompt += `- RSI(14): ${ti.rsi14} (>70 overbought, <30 oversold)\n`;
+      prompt += `- MACD: ${ti.macd} | Signal: ${ti.macdSignal} | Histogram: ${ti.macdHistogram}\n`;
+      prompt += `Gunakan data di atas untuk memberikan analisa teknikal singkat dan relevan.\n`;
+    } else {
+      prompt += `\nINDIKATOR TEKNIKAL TERSEDIA di halaman Chart dashboard (SMA, EMA, RSI, MACD, Bollinger, dll).\n`;
+      prompt += `Jika user tanya analisa teknikal, arahkan ke halaman Chart untuk lihat visual.\n`;
+    }
     if (context.priceData) {
       prompt += `Data harga terbaru tersedia — gunakan untuk memberikan insight singkat.\n`;
     }

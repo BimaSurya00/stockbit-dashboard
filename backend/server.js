@@ -1349,6 +1349,38 @@ app.post('/api/ai/ask', async (req, res) => {
       const priceData = await ChartPrice.findOne({ symbol: symbol.toUpperCase(), timeframe: '1d' }).lean();
       if (priceData) context.priceData = priceData.metadata || null;
 
+      if (priceData && priceData.prices && priceData.prices.length > 20) {
+        try {
+          const { calculate } = require('./lib/technical-analysis');
+          const closePrices = priceData.prices.map(p => Number(p.value)).filter(v => v && !isNaN(v));
+
+          if (closePrices.length < 20) throw new Error('Close price data terlalu sedikit');
+
+          const sma20 = calculate(closePrices, 'SMA', { period: 20 });
+          const sma50 = closePrices.length >= 50 ? calculate(closePrices, 'SMA', { period: 50 }) : null;
+          const sma200 = closePrices.length >= 200 ? calculate(closePrices, 'SMA', { period: 200 }) : null;
+          const ema20 = calculate(closePrices, 'EMA', { period: 20 });
+          const rsi = calculate(closePrices, 'RSI', { period: 14 });
+          const macd = calculate(closePrices, 'MACD');
+
+          const last = (arr) => arr && arr.length > 0 ? Number(arr[arr.length - 1]) : 0;
+
+          context.technicalIndicators = {
+            lastPrice: Number(closePrices[closePrices.length - 1]).toFixed(0),
+            sma20: last(sma20.data.sma).toFixed(0),
+            sma50: sma50 ? last(sma50.data.sma).toFixed(0) : '-',
+            sma200: sma200 ? last(sma200.data.sma).toFixed(0) : '-',
+            ema20: last(ema20.data.ema).toFixed(0),
+            rsi14: last(rsi.data.rsi).toFixed(1),
+            macd: last(macd.data.MACD).toFixed(2),
+            macdSignal: last(macd.data.signal).toFixed(2),
+            macdHistogram: last(macd.data.histogram).toFixed(2),
+          };
+        } catch (e) {
+          console.error('[AI] Gagal kalkulasi indikator teknikal:', e.message);
+        }
+      }
+
       const emitenData = await Emiten.findOne({ symbol: symbol.toUpperCase() }).lean();
       if (emitenData) {
         context.extraContext = `Nama: ${emitenData.name}\nSektor: ${emitenData.sector || '-'}\nIndustri: ${emitenData.industry || '-'}`;
