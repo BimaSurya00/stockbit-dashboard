@@ -1339,9 +1339,7 @@ app.post('/api/ai/ask', async (req, res) => {
       return res.status(400).json({ error: 'Pertanyaan tidak boleh kosong' });
     }
 
-    if (!process.env.GEMINI_API_KEY) {
-      return res.status(503).json({ error: 'GEMINI_API_KEY belum dikonfigurasi' });
-    }
+    // Provider & API key validation handled by gemini.js getProvider()
 
     const context = {};
 

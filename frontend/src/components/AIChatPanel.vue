@@ -4,7 +4,7 @@
     <button
       class="ai-toggle"
       :class="{ 'is-open': isOpen }"
-      @click="toggleOpen"
+      @click.stop="toggleOpen"
       title="AI Assistant"
     >
       <svg v-if="!isOpen" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -232,7 +232,7 @@ async function sendMessage() {
     } else {
       messages.value.push({
         role: 'assistant',
-        content: `⚠️ Gagal terhubung ke server. Pastikan backend berjalan dan GEMINI_API_KEY sudah diatur.`
+        content: `⚠️ Gagal terhubung ke server. Pastikan backend berjalan dan LLM API key sudah diatur.`
       })
     }
   }
