@@ -1446,7 +1446,11 @@ app.post('/api/ai/ask', async (req, res) => {
 
     let fullResponse = '';
 
-    await chatWithContext(question, context, (chunk) => {
+    const enrichedQuestion = context.technicalIndicators
+      ? `[DATA TEKNIKAL ${context.symbol}]\nHarga: ${context.technicalIndicators.lastPrice} | SMA20: ${context.technicalIndicators.sma20} | SMA50: ${context.technicalIndicators.sma50} | EMA20: ${context.technicalIndicators.ema20} | RSI14: ${context.technicalIndicators.rsi14} | MACD: ${context.technicalIndicators.macd} (signal: ${context.technicalIndicators.macdSignal})\n\nPertanyaan user: ${question}`
+      : question;
+
+    await chatWithContext(enrichedQuestion, context, (chunk) => {
       fullResponse += chunk;
       const escaped = chunk.replace(/\n/g, '\\n');
       res.write(`data: ${escaped}\n\n`);
