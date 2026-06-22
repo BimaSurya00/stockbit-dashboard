@@ -30,6 +30,12 @@ jobs:
           MONGODB_URI=${{ secrets.BACKEND_MONGODB_URI }}
           STOCKBIT_TOKEN=${{ secrets.BACKEND_STOCKBIT_TOKEN }}
           USER_AGENT=${{ vars.BACKEND_USER_AGENT }}
+          JWT_SECRET=${{ secrets.BACKEND_JWT_SECRET }}
+          LLM_PROVIDER=${{ vars.BACKEND_LLM_PROVIDER || 'opencode' }}
+          GEMINI_API_KEY=${{ secrets.BACKEND_GEMINI_API_KEY || '' }}
+          OPENCODE_GO_API_KEY=${{ secrets.BACKEND_OPENCODE_GO_API_KEY }}
+          OPENCODE_GO_BASE_URL=${{ vars.BACKEND_OPENCODE_GO_BASE_URL || 'https://opencode.ai/zen/go/v1' }}
+          OPENCODE_GO_MODEL=${{ vars.BACKEND_OPENCODE_GO_MODEL || 'deepseek-v4-flash' }}
           EOF
 
       - name: Deploy with Docker Compose

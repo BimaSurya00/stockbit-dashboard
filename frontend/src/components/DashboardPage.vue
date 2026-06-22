@@ -19,6 +19,7 @@ import SystemMonitor from './SystemMonitor.vue'
 import NewsView from './NewsView.vue'
 import IpoView from './IpoView.vue'
 import MarketMovers from './MarketMovers.vue'
+import AIChatPanel from './AIChatPanel.vue'
 
 const router = useRouter()
 
@@ -375,6 +376,9 @@ function toggleSidebar() {
         </div>
       </div>
     </main>
+
+    <!-- AI Chat Assistant -->
+    <AIChatPanel :symbol="selectedSymbol" />
   </div>
 </template>
 

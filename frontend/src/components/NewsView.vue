@@ -56,6 +56,14 @@
               {{ news.news_feed?.label || news.news_feed?.source || 'Unknown' }}
             </span>
             <span class="news-time">{{ news.created_display }}</span>
+            <span
+              v-if="news.sentiment?.label"
+              class="sentiment-badge"
+              :class="'sentiment-' + news.sentiment.label"
+            >
+              <span class="sentiment-dot"></span>
+              {{ news.sentiment.label }}
+            </span>
           </div>
           <h3 class="news-title">{{ news.title }}</h3>
           <p class="news-excerpt">{{ getExcerpt(news.content) }}</p>
@@ -104,6 +112,17 @@
             {{ selectedNews.news_feed?.label || selectedNews.news_feed?.source }}
           </span>
           <span class="news-time">{{ selectedNews.created_display }}</span>
+          <span
+            v-if="selectedNews.sentiment?.label"
+            class="sentiment-badge"
+            :class="'sentiment-' + selectedNews.sentiment.label"
+          >
+            <span class="sentiment-dot"></span>
+            {{ selectedNews.sentiment.label }}
+          </span>
+        </div>
+        <div v-if="selectedNews.sentiment?.explanation" class="sentiment-explanation">
+          {{ selectedNews.sentiment.explanation }}
         </div>
         <div v-if="selectedNews.images && selectedNews.images.length > 0" class="modal-image">
           <img :src="selectedNews.images[0]" :alt="selectedNews.title" />
@@ -296,6 +315,34 @@ onMounted(() => {
 }
 .source-img { width: 16px; height: 16px; border-radius: 4px; object-fit: cover; }
 .news-time { font-size: 12px; color: var(--text3); }
+
+/* Sentiment Badge */
+.sentiment-badge {
+  display: inline-flex; align-items: center; gap: 4px;
+  padding: 2px 8px; border-radius: 100px;
+  font-size: 10px; font-weight: 700; text-transform: uppercase;
+  letter-spacing: 0.3px; margin-left: auto;
+}
+.sentiment-dot {
+  width: 5px; height: 5px; border-radius: 50%;
+}
+.sentiment-positif {
+  background: rgba(33,191,115,0.1); color: #16804a;
+}
+.sentiment-positif .sentiment-dot { background: #21BF73; }
+.sentiment-netral {
+  background: rgba(100,116,139,0.1); color: #64748b;
+}
+.sentiment-netral .sentiment-dot { background: #94a3b8; }
+.sentiment-negatif {
+  background: rgba(239,58,58,0.1); color: #dc2626;
+}
+.sentiment-negatif .sentiment-dot { background: #EF3A3A; }
+.sentiment-explanation {
+  font-size: 12px; color: var(--text2); font-style: italic;
+  padding: 8px 12px; background: var(--bg); border-radius: 8px;
+  margin: -8px 0 16px;
+}
 
 .news-title {
   font-family: 'DM Sans', 'Inter', sans-serif;

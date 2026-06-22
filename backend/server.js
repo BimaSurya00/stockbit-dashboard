@@ -1197,15 +1197,34 @@ app.get('/api/news', async (req, res) => {
       const response = await client.get('/stream/v3', { params });
       if (response.data?.data?.stream) {
         const newsItems = response.data.data.stream;
+        const streamIds = [];
         for (const item of newsItems) {
           await News.findOneAndUpdate({ streamId: item.stream_id }, { streamId: item.stream_id, title: item.title, content: item.content, contentOriginal: item.content_original, titleUrl: item.title_url, createdAt: new Date(item.created_at), createdDisplay: item.created_display, userId: item.user?.user_id, username: item.user?.username, fullname: item.user?.fullname, userAvatar: item.user?.avatar, type: item.type, images: item.images || [], source: item.news_feed?.source, sourceLabel: item.news_feed?.label, sourceImage: item.news_feed?.img, topics: item.topics || [], totalReplies: item.total_replies || 0, totalLikes: item.total_likes || 0, rawData: item, fetchedAt: new Date() }, { upsert: true, new: true });
+          streamIds.push(item.stream_id);
+        }
+        // Merge sentiment data ke response
+        const sentiments = await News.find({ streamId: { $in: streamIds } }).select('streamId sentiment').lean();
+        const sentimentMap = {};
+        sentiments.forEach(s => { if (s.sentiment?.analyzedAt) sentimentMap[s.streamId] = { score: s.sentiment.score, label: s.sentiment.label, explanation: s.sentiment.explanation }; });
+        if (Object.keys(sentimentMap).length > 0) {
+          response.data.data.stream = response.data.data.stream.map(item => ({
+            ...item,
+            sentiment: sentimentMap[item.stream_id] || null
+          }));
         }
         return res.json(response.data);
       }
     } catch (apiErr) { console.warn('[NEWS] Stockbit API error, fallback to MongoDB:', apiErr.message); }
     const query = {}; if (symbol) query.topics = symbol.toUpperCase(); if (source) query.source = source;
     const news = await News.find(query).sort({ createdAt: -1 }).limit(parseInt(limit)).lean();
-    res.json({ data: { stream: news.map(n => n.rawData || n), pagination: { is_last_page: news.length < parseInt(limit), next_cursor: news.length > 0 ? news[news.length - 1].streamId : null, total: news.length } } });
+    const stream = news.map(n => {
+      const item = n.rawData || n;
+      if (n.sentiment && n.sentiment.analyzedAt) {
+        item.sentiment = { score: n.sentiment.score, label: n.sentiment.label, explanation: n.sentiment.explanation };
+      }
+      return item;
+    });
+    res.json({ data: { stream, pagination: { is_last_page: news.length < parseInt(limit), next_cursor: news.length > 0 ? news[news.length - 1].streamId : null, total: news.length } } });
   } catch (error) { console.error('Error fetching news:', error.message); res.status(500).json({ error: 'Gagal mengambil news', detail: error.message }); }
 });
 
@@ -1214,8 +1233,178 @@ app.get('/api/news/:streamId', async (req, res) => {
     const { streamId } = req.params;
     const news = await News.findOne({ streamId: parseInt(streamId) }).lean();
     if (!news) return res.status(404).json({ error: 'News tidak ditemukan' });
-    res.json({ data: news.rawData || news });
+    const data = news.rawData || news;
+    if (news.sentiment) data.sentiment = news.sentiment;
+    res.json({ data });
   } catch (error) { console.error('Error fetching news detail:', error.message); res.status(500).json({ error: 'Gagal mengambil detail news', detail: error.message }); }
+});
+
+// --- AI / Sentiment Endpoints ---
+const { analyzeSentimentBatch, chatWithContext } = require('./lib/gemini');
+
+// Trigger sentiment analysis untuk berita yang belum dianalisis
+app.post('/api/ai/analyze-sentiment', async (req, res) => {
+  try {
+    const { streamId } = req.body;
+
+    let newsItems;
+    if (streamId) {
+      const item = await News.findOne({ streamId: parseInt(streamId) }).lean();
+      if (!item) return res.status(404).json({ error: 'Berita tidak ditemukan' });
+      newsItems = [item];
+    } else {
+      newsItems = await News.find({ 'sentiment.analyzedAt': null, title: { $ne: null } })
+        .sort({ createdAt: -1 })
+        .limit(20)
+        .lean();
+    }
+
+    if (!newsItems || newsItems.length === 0) {
+      return res.json({ message: 'Semua berita sudah dianalisis', analyzed: 0 });
+    }
+
+    const input = newsItems.map(n => ({
+      streamId: n.streamId,
+      title: n.title,
+      content: n.content || n.contentOriginal || '',
+      topics: n.topics || []
+    }));
+
+    const results = await analyzeSentimentBatch(input);
+
+    let saved = 0;
+    for (const r of results) {
+      if (r.streamId) {
+        await News.findOneAndUpdate(
+          { streamId: r.streamId },
+          { 'sentiment.score': r.score, 'sentiment.label': r.label, 'sentiment.explanation': r.explanation, 'sentiment.analyzedAt': new Date() }
+        );
+        saved++;
+      }
+    }
+
+    res.json({ message: `${saved} berita dianalisis`, analyzed: saved, results });
+  } catch (error) {
+    console.error('[AI] Error analyze sentiment:', error.message);
+    res.status(500).json({ error: 'Gagal menganalisis sentimen', detail: error.message });
+  }
+});
+
+// Ambil statistik sentimen (agregat per label)
+app.get('/api/ai/sentiment-stats', async (req, res) => {
+  try {
+    const { symbol, days = 7 } = req.query;
+
+    const since = new Date();
+    since.setDate(since.getDate() - parseInt(days));
+
+    const match = { 'sentiment.analyzedAt': { $ne: null }, createdAt: { $gte: since } };
+    if (symbol) match.topics = symbol.toUpperCase();
+
+    const stats = await News.aggregate([
+      { $match: match },
+      { $group: { _id: '$sentiment.label', count: { $sum: 1 } } }
+    ]);
+
+    const total = stats.reduce((sum, s) => sum + s.count, 0);
+    const result = { positif: 0, netral: 0, negatif: 0 };
+    stats.forEach(s => { if (result[s._id] !== undefined) result[s._id] = s.count; });
+
+  const topTopics = await News.aggregate([
+    { $match: match },
+    { $unwind: '$topics' },
+    { $match: { topics: { $regex: '^[A-Z]{2,5}$' } } },
+    { $group: { _id: '$topics', count: { $sum: 1 }, avgScore: { $avg: '$sentiment.score' } } },
+    { $sort: { count: -1 } },
+    { $limit: 20 }
+  ]);
+
+  res.json({
+    period: `${days} hari`,
+    total,
+    ...result,
+    topTopics
+  });
+} catch (error) {
+  console.error('[AI] Error sentiment stats:', error.message);
+  res.status(500).json({ error: 'Gagal mengambil statistik sentimen', detail: error.message });
+}
+});
+
+app.post('/api/ai/ask', async (req, res) => {
+  try {
+    const { question, symbol } = req.body;
+
+    if (!question) {
+      return res.status(400).json({ error: 'Pertanyaan tidak boleh kosong' });
+    }
+
+    if (!process.env.GEMINI_API_KEY) {
+      return res.status(503).json({ error: 'GEMINI_API_KEY belum dikonfigurasi' });
+    }
+
+    const context = {};
+
+    if (symbol) {
+      context.symbol = symbol.toUpperCase();
+
+      const priceData = await ChartPrice.findOne({ symbol: symbol.toUpperCase(), timeframe: '1d' }).lean();
+      if (priceData) context.priceData = priceData.metadata || null;
+
+      const emitenData = await Emiten.findOne({ symbol: symbol.toUpperCase() }).lean();
+      if (emitenData) {
+        context.extraContext = `Nama: ${emitenData.name}\nSektor: ${emitenData.sector || '-'}\nIndustri: ${emitenData.industry || '-'}`;
+        if (!context.priceData && emitenData.lastPrice) {
+          context.priceData = { lastPrice: emitenData.lastPrice, change: emitenData.change, changePercent: emitenData.changePercent };
+        }
+      }
+    }
+
+    const newsQuery = symbol
+      ? { topics: symbol.toUpperCase() }
+      : {};
+    const recentNews = await News.find(newsQuery)
+      .sort({ createdAt: -1 })
+      .limit(10)
+      .select('title content sentiment createdAt createdDisplay')
+      .lean();
+    context.newsItems = recentNews;
+
+    if (symbol) {
+      const FinancialReport = require('./models/FinancialReport');
+      const reports = await FinancialReport.find({ kodeEmiten: symbol.toUpperCase() })
+        .sort({ fileModified: -1 })
+        .limit(5)
+        .lean();
+      context.financialReports = reports;
+    }
+
+    res.writeHead(200, {
+      'Content-Type': 'text/event-stream',
+      'Cache-Control': 'no-cache',
+      'Connection': 'keep-alive',
+      'X-Accel-Buffering': 'no'
+    });
+
+    let fullResponse = '';
+
+    await chatWithContext(question, context, (chunk) => {
+      fullResponse += chunk;
+      const escaped = chunk.replace(/\n/g, '\\n');
+      res.write(`data: ${escaped}\n\n`);
+    });
+
+    res.write(`data: [DONE]\n\n`);
+    res.end();
+  } catch (error) {
+    console.error('[AI] Error chat:', error.message);
+    try {
+      res.write(`data: [ERROR] ${error.message}\n\n`);
+      res.end();
+    } catch (_) {
+      res.status(500).json({ error: 'Gagal memproses pertanyaan', detail: error.message });
+    }
+  }
 });
 
 // --- IPO Endpoint ---

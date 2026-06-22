@@ -71,6 +71,28 @@ const newsSchema = new mongoose.Schema({
   fetchedAt: {
     type: Date,
     default: Date.now
+  },
+  // Analisis sentimen (diisi oleh worker analyze-sentiment.js)
+  sentiment: {
+    score: {
+      type: Number,
+      default: null,
+      min: -1,
+      max: 1
+    },
+    label: {
+      type: String,
+      enum: ['positif', 'netral', 'negatif', null],
+      default: null
+    },
+    explanation: {
+      type: String,
+      default: null
+    },
+    analyzedAt: {
+      type: Date,
+      default: null
+    }
   }
 });
 
