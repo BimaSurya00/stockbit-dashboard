@@ -118,7 +118,7 @@
 </template>
 
 <script setup>
-import { ref, nextTick, watch, onMounted } from 'vue'
+import { ref, nextTick, watch, onMounted, onUnmounted } from 'vue'
 
 const props = defineProps({
   symbol: { type: String, default: '' }
@@ -266,14 +266,18 @@ watch(() => props.symbol, () => {
   }
 })
 
+function handleOutsideClick(e) {
+  const el = document.querySelector('.ai-chat-widget')
+  if (el && !e.composedPath().includes(el) && isOpen.value) {
+    isOpen.value = false
+  }
+}
+
 onMounted(() => {
-  // Click outside to close
-  document.addEventListener('click', (e) => {
-    const el = document.querySelector('.ai-chat-widget')
-    if (el && !el.contains(e.target) && isOpen.value) {
-      isOpen.value = false
-    }
-  })
+  document.addEventListener('pointerdown', handleOutsideClick)
+})
+onUnmounted(() => {
+  document.removeEventListener('pointerdown', handleOutsideClick)
 })
 </script>
 

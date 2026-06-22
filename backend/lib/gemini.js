@@ -83,6 +83,21 @@ KONTEKS DATA SAAT INI:\n`;
 
   if (context.symbol) {
     prompt += `\nEmiten: ${context.symbol}\n`;
+
+    prompt += `
+INDIKATOR TEKNIKAL TERSEDIA (di halaman Chart):
+Dashboard ini memiliki 20+ indikator teknikal:
+- Overlay: SMA, EMA, WMA, Bollinger Bands, Parabolic SAR, VWAP, Ichimoku Cloud, Keltner Channels
+- Momentum: RSI, MACD, Stochastic, Stochastic RSI, CCI, ROC, Williams %R, TRIX, KST
+- Trend: ADX
+- Volatilitas: ATR, Bollinger Bands, Keltner Channels
+- Volume: Volume MA, OBV, MFI
+Jika user bertanya tentang analisa teknikal, arahkan mereka ke halaman Chart di dashboard
+untuk melihat indikator-indikator tersebut secara visual.
+`;
+    if (context.priceData) {
+      prompt += `Data harga terbaru tersedia — gunakan untuk memberikan insight singkat.\n`;
+    }
   }
 
   if (context.newsItems && context.newsItems.length > 0) {
