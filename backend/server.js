@@ -1347,8 +1347,9 @@ app.post('/api/ai/ask', async (req, res) => {
       context.symbol = symbol.toUpperCase();
 
       const priceData = await ChartPrice.findOne({ symbol: symbol.toUpperCase(), timeframe: '1d' }).lean();
+      if (priceData) context.priceData = priceData.metadata || null;
 
-      if (priceData && priceData.prices && priceData.prices.length > 20) {
+      if (priceData && priceData.prices && priceData.prices.length > 0) {
         try {
           const { calculate } = require('./lib/technical-analysis');
           const closePrices = priceData.prices
