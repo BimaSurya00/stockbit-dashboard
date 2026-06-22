@@ -28,9 +28,9 @@ async function main() {
   try {
     console.log('[START] Sentiment analyzer worker\n');
 
-    if (!process.env.GEMINI_API_KEY) {
-      console.error('[ERROR] GEMINI_API_KEY tidak ditemukan di environment. Set di .env atau export.');
-      await updateStatus('error', 'GEMINI_API_KEY tidak ditemukan');
+    if (!process.env.OPENCODE_GO_API_KEY && !process.env.GEMINI_API_KEY) {
+      console.error('[ERROR] Tidak ada LLM API key. Set OPENCODE_GO_API_KEY atau GEMINI_API_KEY di .env.');
+      await updateStatus('error', 'LLM API key tidak ditemukan');
       process.exit(1);
     }
 
