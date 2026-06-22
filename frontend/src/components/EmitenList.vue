@@ -17,7 +17,7 @@ const selectedEmiten = ref(null)
 const viewMode = ref('grid') // 'grid' or 'table'
 const sectors = ref([])
 
-// Advanced filters
+// Advanced filter
 const showAdvanced = ref(false)
 const filters = ref({
   minPrice: null,
