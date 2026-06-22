@@ -86,6 +86,7 @@ KONTEKS DATA SAAT INI:\n`;
 
     if (context.technicalIndicators) {
       const ti = context.technicalIndicators;
+      console.log('[AI-PROMPT] Ada indikator teknikal:', JSON.stringify(ti));
       prompt += `\nDATA TEKNIKAL (live dari chart harian):\n`;
       prompt += `- Harga terakhir: ${ti.lastPrice}\n`;
       prompt += `- SMA20: ${ti.sma20} | SMA50: ${ti.sma50} | EMA20: ${ti.ema20}\n`;
