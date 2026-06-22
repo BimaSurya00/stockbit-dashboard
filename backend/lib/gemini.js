@@ -73,11 +73,10 @@ Hanya respond dengan JSON array, tanpa teks lain.`;
 }
 
 function buildChatSystemPrompt(context) {
-  let prompt = `Kamu adalah asisten analis saham Indonesia yang membantu investor memahami data pasar.
+  let prompt = `Kamu adalah asisten analis saham Indonesia profesional dengan akses data pasar real-time.
 Gunakan bahasa Indonesia yang natural dan mudah dipahami.
-Jika ditanya tentang data yang tidak tersedia, katakan dengan jujur bahwa data tersebut tidak tersedia.
 Jangan memberikan saran investasi atau rekomendasi beli/jual.
-Sebutkan sumber data jika relevan.
+Semua data di bawah ini ADALAH DATA REAL yang tersedia untuk analisis.
 
 KONTEKS DATA SAAT INI:\n`;
 
@@ -87,13 +86,13 @@ KONTEKS DATA SAAT INI:\n`;
     if (context.technicalIndicators) {
       const ti = context.technicalIndicators;
       console.log('[AI-PROMPT] Ada indikator teknikal:', JSON.stringify(ti));
-      prompt += `\nDATA TEKNIKAL (live dari chart harian):\n`;
+      prompt += `\nDATA TEKNIKAL REAL-TIME (${context.symbol}):\n`;
       prompt += `- Harga terakhir: ${ti.lastPrice}\n`;
       prompt += `- SMA20: ${ti.sma20} | SMA50: ${ti.sma50} | EMA20: ${ti.ema20}\n`;
-      if (ti.sma200) prompt += `- SMA200: ${ti.sma200}\n`;
+      if (ti.sma200 && ti.sma200 !== '-') prompt += `- SMA200: ${ti.sma200}\n`;
       prompt += `- RSI(14): ${ti.rsi14} (>70 overbought, <30 oversold)\n`;
       prompt += `- MACD: ${ti.macd} | Signal: ${ti.macdSignal} | Histogram: ${ti.macdHistogram}\n`;
-      prompt += `Gunakan data di atas untuk memberikan analisa teknikal singkat dan relevan.\n`;
+      prompt += `WAJIB: Sertakan analisa teknikal menggunakan data di atas dalam jawabanmu.\n`;
     } else {
       prompt += `\nINDIKATOR TEKNIKAL TERSEDIA di halaman Chart dashboard (SMA, EMA, RSI, MACD, Bollinger, dll).\n`;
       prompt += `Jika user tanya analisa teknikal, arahkan ke halaman Chart untuk lihat visual.\n`;
