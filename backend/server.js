@@ -1346,47 +1346,68 @@ app.post('/api/ai/ask', async (req, res) => {
     if (symbol) {
       context.symbol = symbol.toUpperCase();
 
-      const priceData = await ChartPrice.findOne({ symbol: symbol.toUpperCase(), timeframe: '1d' }).lean();
-      if (priceData) context.priceData = priceData.metadata || null;
+      let closePrices = [];
+      let priceMeta = null;
 
-      if (priceData && priceData.prices && priceData.prices.length > 0) {
-        try {
-          const { calculate } = require('./lib/technical-analysis');
-          const closePrices = priceData.prices
+      try {
+        const client = getStockbitClient();
+        const stockbitRes = await client.get(`/charts/${symbol.toUpperCase()}/daily`, {
+          params: { timeframe: '1d', is_include_previous_historical: 'true', _t: Date.now() }
+        });
+        const prices = stockbitRes.data?.data?.prices;
+        if (prices && prices.length > 0) {
+          priceMeta = {
+            lastPrice: parseFloat(prices[prices.length - 1]?.value) || 0,
+            change: prices[prices.length - 1]?.change || 0,
+            changePercent: prices[prices.length - 1]?.percentage || '0'
+          };
+          closePrices = prices
             .map(p => (typeof p.value === 'string' ? parseFloat(p.value.replace(/,/g, '')) : Number(p.value)))
             .filter(v => !isNaN(v) && v > 0);
+          console.log('[AI] Live chart OK:', stockbitRes.status, '|', closePrices.length, 'points');
+        }
+      } catch (apiErr) {
+        console.log('[AI] Stockbit API gagal, fallback ke MongoDB:', apiErr.response?.status || apiErr.message);
+        const dbData = await ChartPrice.findOne({ symbol: symbol.toUpperCase(), timeframe: '1d' }).lean();
+        if (dbData?.prices && dbData.prices.length > 0) {
+          priceMeta = dbData.metadata || null;
+          closePrices = dbData.prices
+            .map(p => (typeof p.value === 'string' ? parseFloat(p.value.replace(/,/g, '')) : Number(p.value)))
+            .filter(v => !isNaN(v) && v > 0);
+          console.log('[AI] MongoDB fallback OK:', closePrices.length, 'points');
+        }
+      }
 
-          if (closePrices.length >= 20) {
-            const sma20 = calculate(closePrices, 'SMA', { period: 20 });
-            const sma50 = closePrices.length >= 50 ? calculate(closePrices, 'SMA', { period: 50 }) : null;
-            const sma200 = closePrices.length >= 200 ? calculate(closePrices, 'SMA', { period: 200 }) : null;
-            const ema20 = calculate(closePrices, 'EMA', { period: 20 });
-            const rsi = calculate(closePrices, 'RSI', { period: 14 });
-            const macd = calculate(closePrices, 'MACD');
+      if (closePrices.length >= 20) {
+        try {
+          const { calculate } = require('./lib/technical-analysis');
+          const sma20 = calculate(closePrices, 'SMA', { period: 20 });
+          const sma50 = closePrices.length >= 50 ? calculate(closePrices, 'SMA', { period: 50 }) : null;
+          const sma200 = closePrices.length >= 200 ? calculate(closePrices, 'SMA', { period: 200 }) : null;
+          const ema20 = calculate(closePrices, 'EMA', { period: 20 });
+          const rsi = calculate(closePrices, 'RSI', { period: 14 });
+          const macd = calculate(closePrices, 'MACD');
 
-            const last = (arr) => arr && arr.length > 0 ? Number(arr[arr.length - 1]) : 0;
+          const last = (arr) => arr && arr.length > 0 ? Number(arr[arr.length - 1]) : 0;
 
-            context.technicalIndicators = {
-              lastPrice: Number(closePrices[closePrices.length - 1]).toFixed(0),
-              sma20: last(sma20.data.sma).toFixed(0),
-              sma50: sma50 ? last(sma50.data.sma).toFixed(0) : '-',
-              sma200: sma200 ? last(sma200.data.sma).toFixed(0) : '-',
-              ema20: last(ema20.data.ema).toFixed(0),
-              rsi14: last(rsi.data.rsi).toFixed(1),
-              macd: last(macd.data.MACD).toFixed(2),
-              macdSignal: last(macd.data.signal).toFixed(2),
-              macdHistogram: last(macd.data.histogram).toFixed(2),
-            };
-            console.log('[AI] Indikator OK:', context.technicalIndicators.lastPrice, '| RSI:', context.technicalIndicators.rsi14);
-          } else {
-            console.log('[AI] Chart data terlalu sedikit:', closePrices.length, 'points untuk', symbol);
-          }
+          context.technicalIndicators = {
+            lastPrice: Number(closePrices[closePrices.length - 1]).toFixed(0),
+            sma20: last(sma20.data.sma).toFixed(0),
+            sma50: sma50 ? last(sma50.data.sma).toFixed(0) : '-',
+            sma200: sma200 ? last(sma200.data.sma).toFixed(0) : '-',
+            ema20: last(ema20.data.ema).toFixed(0),
+            rsi14: last(rsi.data.rsi).toFixed(1),
+            macd: last(macd.data.MACD).toFixed(2),
+            macdSignal: last(macd.data.signal).toFixed(2),
+            macdHistogram: last(macd.data.histogram).toFixed(2),
+          };
+          console.log('[AI] Indikator OK:', context.technicalIndicators.lastPrice, '| RSI:', context.technicalIndicators.rsi14);
         } catch (e) {
           console.error('[AI] Gagal kalkulasi indikator:', symbol, e.message);
         }
-      } else {
-        console.log('[AI] Tidak ada chart data untuk', symbol, priceData ? `(${priceData.prices?.length || 0} prices)` : '(null)');
       }
+
+      context.priceData = priceMeta;
 
       const emitenData = await Emiten.findOne({ symbol: symbol.toUpperCase() }).lean();
       if (emitenData) {
