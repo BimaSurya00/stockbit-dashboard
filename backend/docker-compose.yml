@@ -43,6 +43,21 @@ services:
       - stockbit_network
       - siwa_net
 
+  stockbit-sentiment-worker:
+    container_name: stockbit-sentiment-worker
+    build:
+      context: .
+      dockerfile: Dockerfile
+    command: node workers/analyze-sentiment.js
+    env_file:
+      - .env
+    restart: always
+    depends_on:
+      - stockbit-backend
+    networks:
+      - stockbit_network
+      - siwa_net
+
 networks:
   stockbit_network:
     name: stockbit_network
