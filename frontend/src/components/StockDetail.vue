@@ -13,6 +13,14 @@ const API_BASE = ''
 const timeframe = ref('1d')
 const chartData = ref(null)
 const chartLoading = ref(false)
+const watchlist = ref(JSON.parse(localStorage.getItem('edart_watchlist') || '[]'))
+const isWatched = computed(() => watchlist.value.includes(props.symbol))
+function toggleWatchlist() {
+  const idx = watchlist.value.indexOf(props.symbol)
+  if (idx >= 0) watchlist.value.splice(idx, 1)
+  else watchlist.value.push(props.symbol)
+  localStorage.setItem('edart_watchlist', JSON.stringify(watchlist.value))
+}
 const chartError = ref('')
 
 // Indicator state - sidebar always visible
@@ -164,7 +172,9 @@ fetchInfo()
           <h1 class="page-title">{{ symbol }}</h1>
           <span class="page-subtitle">Chart & Analisis Teknikal</span>
         </div>
-      </div>
+        <button class="watchlist-star" :class="{ active: isWatched }" @click="toggleWatchlist" :title="isWatched ? 'Remove from watchlist' : 'Add to watchlist'">
+          <svg width="20" height="20" viewBox="0 0 24 24" :fill="isWatched ? 'currentColor' : 'none'" stroke="currentColor" stroke-width="2"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
+        </button>
       <div class="timeframe-pills">
         <button v-for="tf in timeframes" :key="tf.value"
           class="tf-pill" :class="{ active: timeframe === tf.value }"

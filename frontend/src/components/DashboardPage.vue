@@ -1,5 +1,5 @@
 <script setup>
-import { ref, onMounted } from 'vue'
+import { ref, onMounted, watch } from 'vue'
 import axios from 'axios'
 import { useRouter } from 'vue-router'
 import { state, clearSession, isAuthenticated, isAdmin } from '../stores/auth.js'
@@ -37,6 +37,20 @@ const tokenMessage = ref('')
 const selectedSymbol = ref('')
 const showRaw = ref(false)
 const sidebarOpen = ref(false)
+const watchlist = ref(JSON.parse(localStorage.getItem('edart_watchlist') || '[]'))
+const isDark = ref(localStorage.getItem('edart_theme') === 'dark')
+const watchlistPrices = ref({})
+
+watch(watchlist, (v) => localStorage.setItem('edart_watchlist', JSON.stringify(v)), { deep: true })
+watch(isDark, (v) => localStorage.setItem('edart_theme', v ? 'dark' : 'light'))
+
+function toggleDark() { isDark.value = !isDark.value }
+function toggleWatchlist(sym) {
+  const idx = watchlist.value.indexOf(sym)
+  if (idx >= 0) watchlist.value.splice(idx, 1)
+  else watchlist.value.push(sym)
+}
+function isWatched(sym) { return watchlist.value.includes(sym) }
 
 onMounted(async () => {
   if (!isAuthenticated()) {
@@ -217,7 +231,7 @@ function toggleSidebar() {
 </script>
 
 <template>
-  <div class="app-root">
+  <div class="app-root" :class="{ dark: isDark }">
     <!-- SIDEBAR -->
     <aside class="sidebar" :class="{ open: sidebarOpen }">
       <div class="sidebar-header">
@@ -254,6 +268,24 @@ function toggleSidebar() {
         </div>
         </template>
       </nav>
+
+      <div v-if="watchlist.length" class="sidebar-watchlist">
+        <div class="watchlist-header">
+          <span class="nav-label">WATCHLIST</span>
+          <span class="watchlist-count">{{ watchlist.length }}</span>
+        </div>
+        <div class="watchlist-items">
+          <button
+            v-for="sym in watchlist"
+            :key="sym"
+            class="watchlist-item"
+            @click="goToDetail(sym)"
+          >
+            <span class="wl-symbol">{{ sym }}</span>
+            <button class="wl-remove" @click.stop="toggleWatchlist(sym)" title="Remove">×</button>
+          </button>
+        </div>
+      </div>
 
       <div class="sidebar-footer">
         <div class="user-card">
@@ -292,7 +324,12 @@ function toggleSidebar() {
             <span class="bc-main">{{ tabLabels[activeTab] }}</span>
           </div>
         </div>
-        <div class="topbar-right"></div>
+        <div class="topbar-right">
+          <button class="icon-btn" @click="toggleDark" :title="isDark ? 'Light mode' : 'Dark mode'">
+            <svg v-if="!isDark" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
+            <svg v-else width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg>
+          </button>
+        </div>
       </header>
 
       <!-- CONTENT AREA -->
@@ -398,6 +435,18 @@ function toggleSidebar() {
   font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
   background: var(--bg);
   color: var(--text);
+}
+
+.dark.app-root {
+  --bg: #0F172A;
+  --surface: #1E293B;
+  --text: #F1F5F9;
+  --text-soft: #94A3B8;
+  --text-muted: #64748B;
+  --border: rgba(255, 255, 255, 0.06);
+  --shadow-sm: 0 1px 2px rgba(0,0,0,0.3);
+  --shadow-md: 0 4px 20px rgba(0,0,0,0.4);
+  --shadow-lg: 0 8px 30px rgba(0,0,0,0.5);
 }
 
 /* ─── SIDEBAR ─── */
@@ -537,6 +586,51 @@ function toggleSidebar() {
 .nav-item.active .nav-icon {
   opacity: 1;
 }
+
+.sidebar-watchlist {
+  padding: 0 12px;
+  margin-bottom: 8px;
+}
+.watchlist-header {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 8px 12px 10px;
+}
+.watchlist-count {
+  font-size: 10px; font-weight: 700; color: var(--text3);
+  background: var(--bg); padding: 2px 8px; border-radius: 10px;
+}
+.watchlist-items {
+  display: flex; flex-direction: column; gap: 2px; max-height: 200px; overflow-y: auto;
+}
+.watchlist-item {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 8px 12px; border-radius: 10px; border: none; background: transparent;
+  cursor: pointer; font-family: inherit; font-size: 13px; font-weight: 600;
+  color: var(--text2); transition: all 0.15s; width: 100%;
+}
+.watchlist-item:hover { background: var(--bg); color: var(--text); }
+.wl-symbol { font-family: 'DM Sans', monospace; letter-spacing: 0.5px; }
+.wl-remove {
+  width: 20px; height: 20px; border: none; background: transparent;
+  color: var(--text3); font-size: 16px; cursor: pointer; border-radius: 4px;
+  display: flex; align-items: center; justify-content: center; transition: all 0.15s;
+}
+.wl-remove:hover { color: var(--red); background: rgba(239,58,58,0.06); }
+
+.watchlist-star {
+  width: 36px; height: 36px; border: none; background: transparent;
+  color: var(--text3); cursor: pointer; border-radius: 10px;
+  display: flex; align-items: center; justify-content: center; transition: all 0.2s; flex-shrink: 0;
+}
+.watchlist-star:hover { background: var(--bg); }
+.watchlist-star.active { color: #f59e0b; }
+
+.icon-btn {
+  width: 38px; height: 38px; border: none; background: transparent;
+  color: var(--text2); cursor: pointer; border-radius: 10px;
+  display: flex; align-items: center; justify-content: center; transition: all 0.2s;
+}
+.icon-btn:hover { background: var(--bg); color: var(--text); }
 
 .sidebar-footer {
   padding: 16px;
