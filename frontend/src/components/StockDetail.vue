@@ -350,14 +350,14 @@ fetchInfo()
 .ob-vol { color: var(--text2); font-weight: 500; }
 
 /* Timeframe Pills */
-.timeframe-pills { display: flex; gap: 4px; background: #F1F5F9; border-radius: 100px; padding: 4px; }
+.timeframe-pills { display: flex; gap: 4px; background: var(--bg); border-radius: 100px; padding: 4px; }
 .tf-pill {
   padding: 7px 14px; border: none; background: transparent; border-radius: 100px;
   font-family: 'Inter', sans-serif; font-size: 12px; font-weight: 600; color: var(--text2);
   cursor: pointer; transition: all 0.2s ease; white-space: nowrap;
 }
 .tf-pill:hover { color: var(--text); }
-.tf-pill.active { background: var(--surface); color: var(--text); box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
+.tf-pill.active { background: var(--surface); color: var(--text); box-shadow: var(--shadow); }
 
 /* Layout */
 .detail-layout {

@@ -151,13 +151,13 @@ onUnmounted(() => {
 .page-title {
   font-size: 24px;
   font-weight: 700;
-  color: #111827;
+  color: var(--text);
   margin: 0 0 4px 0;
 }
 
 .page-subtitle {
   font-size: 14px;
-  color: #6b7280;
+  color: var(--text2);
   margin: 0;
 }
 
@@ -168,9 +168,9 @@ onUnmounted(() => {
 }
 
 .worker-card {
-  background: white;
+  background: var(--surface);
   border-radius: 12px;
-  border: 1px solid #e5e7eb;
+  border: 1px solid var(--border);
   padding: 20px;
   transition: all 0.2s;
 }
@@ -200,11 +200,11 @@ onUnmounted(() => {
   width: 44px;
   height: 44px;
   border-radius: 10px;
-  background: #f3f4f6;
+  background: var(--bg);
   display: flex;
   align-items: center;
   justify-content: center;
-  color: #374151;
+  color: var(--text2);
 }
 
 .worker-info {
@@ -214,7 +214,7 @@ onUnmounted(() => {
 .worker-name {
   font-size: 16px;
   font-weight: 600;
-  color: #111827;
+  color: var(--text);
   margin: 0 0 4px 0;
 }
 
@@ -238,7 +238,7 @@ onUnmounted(() => {
 }
 
 .badge-error {
-  background: #fee2e2;
+  background: rgba(239,58,58,0.08);
   color: #991b1b;
 }
 
@@ -259,7 +259,7 @@ onUnmounted(() => {
 .progress-bar-bg {
   width: 100%;
   height: 8px;
-  background: #e5e7eb;
+  background: var(--bg);
   border-radius: 4px;
   overflow: hidden;
 }
@@ -273,7 +273,7 @@ onUnmounted(() => {
 
 .progress-text {
   font-size: 12px;
-  color: #6b7280;
+  color: var(--text2);
   margin: 6px 0 0 0;
 }
 
@@ -282,7 +282,7 @@ onUnmounted(() => {
   align-items: center;
   gap: 6px;
   padding: 10px;
-  background: #fef2f2;
+  background: rgba(239,58,58,0.06);
   border-radius: 6px;
   color: #dc2626;
   font-size: 13px;
@@ -302,17 +302,17 @@ onUnmounted(() => {
 
 .time-info p {
   font-size: 12px;
-  color: #6b7280;
+  color: var(--text2);
   margin: 0;
 }
 
 .time-info strong {
-  color: #374151;
+  color: var(--text2);
 }
 
 .updated-at {
   font-size: 11px;
-  color: #9ca3af;
+  color: var(--text3);
   margin: 0;
 }
 
@@ -322,7 +322,7 @@ onUnmounted(() => {
   align-items: center;
   justify-content: center;
   padding: 60px 20px;
-  color: #6b7280;
+  color: var(--text2);
 }
 
 .spinner {
@@ -366,10 +366,10 @@ onUnmounted(() => {
   gap: 8px;
   margin-top: 20px;
   padding: 10px 16px;
-  background: #f9fafb;
+  background: var(--bg);
   border-radius: 8px;
   font-size: 13px;
-  color: #6b7280;
+  color: var(--text2);
   width: fit-content;
 }
 

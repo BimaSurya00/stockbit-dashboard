@@ -328,7 +328,7 @@ onUnmounted(() => {
   background: var(--surface);
   border-radius: 18px;
   box-shadow: 0 8px 40px rgba(0,0,0,0.12);
-  border: 1px solid rgba(0,0,0,0.06);
+  border: 1px solid var(--border);
   display: flex;
   flex-direction: column;
   overflow: hidden;
@@ -374,7 +374,7 @@ onUnmounted(() => {
   display: block;
   font-size: 14px;
   font-weight: 700;
-  color: #1E1E1E;
+  color: var(--text);
   line-height: 1.2;
 }
 
@@ -438,7 +438,7 @@ onUnmounted(() => {
   font-family: 'DM Sans', 'Inter', sans-serif;
   font-size: 17px;
   font-weight: 800;
-  color: #1E1E1E;
+  color: var(--text);
   margin: 0 0 6px;
 }
 
@@ -460,12 +460,12 @@ onUnmounted(() => {
 .suggestion-chip {
   padding: 8px 14px;
   background: var(--bg);
-  border: 1px solid rgba(0,0,0,0.06);
+  border: 1px solid var(--border);
   border-radius: 100px;
   font-family: inherit;
   font-size: 12px;
   font-weight: 600;
-  color: #1E1E1E;
+  color: var(--text);
   cursor: pointer;
   transition: all 0.2s;
 }
@@ -507,13 +507,13 @@ onUnmounted(() => {
 }
 
 .message.assistant .msg-bubble {
-  background: #F1F4F9;
-  color: #1E1E1E;
+  background: var(--bg);
+  color: var(--text);
   border-bottom-left-radius: 4px;
 }
 
 .message.assistant .msg-bubble.thinking {
-  background: #F1F4F9;
+  background: var(--bg);
   min-width: 120px;
 }
 
@@ -550,7 +550,7 @@ onUnmounted(() => {
 .chat-input-area {
   padding: 12px 16px 14px;
   border-top: 1px solid rgba(0,0,0,0.05);
-  background: #FAFBFC;
+  background: var(--bg);
 }
 
 .chat-input-wrapper {
@@ -558,7 +558,7 @@ onUnmounted(() => {
   align-items: center;
   gap: 8px;
   background: var(--surface);
-  border: 1px solid rgba(0,0,0,0.08);
+  border: 1px solid var(--border);
   border-radius: 12px;
   padding: 4px;
   transition: border-color 0.2s;
@@ -576,7 +576,7 @@ onUnmounted(() => {
   padding: 8px 10px;
   font-family: inherit;
   font-size: 13px;
-  color: #1E1E1E;
+  color: var(--text);
   outline: none;
   min-width: 0;
 }

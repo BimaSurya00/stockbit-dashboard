@@ -674,7 +674,7 @@ watch(chartType, () => {
   display: flex;
   gap: 4px;
   margin-bottom: 12px;
-  background: #F1F5F9;
+  background: var(--bg);
   border-radius: 8px;
   padding: 4px;
   width: fit-content;
@@ -701,9 +701,9 @@ watch(chartType, () => {
 }
 
 .toggle-btn.active {
-  background: white;
+  background: var(--surface);
   color: #0F172A;
-  box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+  box-shadow: var(--shadow);
 }
 
 /* Overlay Legend */
@@ -721,7 +721,7 @@ watch(chartType, () => {
   gap: 5px;
   font-size: 11px;
   font-weight: 600;
-  color: #475569;
+  color: var(--text2);
 }
 
 .legend-dot {
@@ -733,7 +733,7 @@ watch(chartType, () => {
 /* Chart */
 .chart-wrapper {
   position: relative;
-  background: white;
+  background: var(--surface);
   border-radius: 8px;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
   overflow: hidden;
@@ -748,7 +748,7 @@ watch(chartType, () => {
   position: absolute; top: 0; left: 0; right: 0; bottom: 0;
   display: flex; align-items: center; justify-content: center; gap: 10px;
   background: rgba(255,255,255,0.8); z-index: 5;
-  font-size: 13px; color: #475569; font-family: 'Inter', sans-serif;
+  font-size: 13px; color: var(--text2); font-family: 'Inter', sans-serif;
 }
 .spinner {
   width: 18px; height: 18px; border: 2px solid #E2E8F0; border-top-color: #205BFC;

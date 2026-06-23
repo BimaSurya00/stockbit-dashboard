@@ -679,7 +679,7 @@ onUnmounted(() => { if (intervalId) clearInterval(intervalId) })
   cursor: pointer; transition: all 0.2s ease; white-space: nowrap;
 }
 .mover-pill:hover { color: var(--text); }
-.mover-pill.active { background: white; color: var(--text); box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
+.mover-pill.active { background: var(--surface); color: var(--text); box-shadow: var(--shadow); }
 .mover-table { width: 100%; border-collapse: collapse; font-size: 13px; margin-top: 16px; }
 .mover-table thead th {
   text-align: left; padding: 8px 8px 12px; font-size: 10px; font-weight: 700;

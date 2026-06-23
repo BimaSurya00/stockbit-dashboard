@@ -406,7 +406,7 @@ watch(() => [props.data, props.times], () => {
 }
 
 .oscillator-card {
-  background: #FFFFFF;
+  background: var(--surface);
   border: 1px solid rgba(0, 0, 0, 0.06);
   border-radius: 14px;
   padding: 14px;
@@ -423,7 +423,7 @@ watch(() => [props.data, props.times], () => {
 .osc-name {
   font-size: 12px;
   font-weight: 700;
-  color: #475569;
+  color: var(--text2);
   flex: 1;
 }
 

@@ -309,7 +309,7 @@ onMounted(fetchData)
   cursor: pointer; transition: all 0.2s ease; white-space: nowrap;
 }
 .mover-pill:hover { color: var(--text); }
-.mover-pill.active { background: white; color: var(--text); box-shadow: var(--shadow); }
+.mover-pill.active { background: var(--surface); color: var(--text); box-shadow: var(--shadow); }
 .pill-icon { font-size: 11px; font-weight: 700; }
 .pill-icon.up { color: var(--green); }
 .pill-icon.down { color: var(--red); }

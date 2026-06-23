@@ -390,13 +390,13 @@ onMounted(fetchIndicators)
 
 .preset-btn {
   padding: 5px 10px;
-  border: 1px solid rgba(0,0,0,0.08);
+  border: 1px solid var(--border);
   background: var(--bg);
   border-radius: 6px;
   font-size: 11px;
   font-weight: 600;
   font-family: 'Inter', sans-serif;
-  color: #475569;
+  color: var(--text2);
   cursor: pointer;
   transition: all 0.2s;
 }
@@ -478,7 +478,7 @@ onMounted(fetchIndicators)
 .category-label {
   font-size: 12px;
   font-weight: 700;
-  color: #475569;
+  color: var(--text2);
   flex: 1;
 }
 
@@ -486,7 +486,7 @@ onMounted(fetchIndicators)
   font-size: 11px;
   font-weight: 600;
   color: #94A3B8;
-  background: #F1F5F9;
+  background: var(--bg);
   padding: 2px 8px;
   border-radius: 100px;
 }
@@ -539,7 +539,7 @@ onMounted(fetchIndicators)
   font-size: 10px;
   font-weight: 700;
   color: #94A3B8;
-  background: #F1F5F9;
+  background: var(--bg);
   padding: 2px 6px;
   border-radius: 4px;
   font-family: 'SF Mono', 'Fira Code', monospace;
@@ -579,7 +579,7 @@ onMounted(fetchIndicators)
 .param-input {
   width: 60px;
   padding: 4px 8px;
-  border: 1px solid rgba(0,0,0,0.1);
+  border: 1px solid var(--border);
   border-radius: 6px;
   font-size: 12px;
   font-family: 'SF Mono', 'Fira Code', monospace;

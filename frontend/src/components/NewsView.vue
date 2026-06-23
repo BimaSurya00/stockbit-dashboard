@@ -251,7 +251,7 @@ onMounted(() => {
 .sub-tab:hover { color: var(--text); }
 .sub-tab.active {
   background: var(--surface); color: var(--text);
-  box-shadow: 0 1px 3px rgba(0,0,0,0.06);
+  box-shadow: var(--shadow);
 }
 
 .tab-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
@@ -331,7 +331,7 @@ onMounted(() => {
 }
 .sentiment-positif .sentiment-dot { background: #21BF73; }
 .sentiment-netral {
-  background: rgba(100,116,139,0.1); color: #64748b;
+  background: var(--bg); color: var(--text3);
 }
 .sentiment-netral .sentiment-dot { background: #94a3b8; }
 .sentiment-negatif {
