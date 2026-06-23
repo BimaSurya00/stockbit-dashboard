@@ -228,7 +228,7 @@ function toggleSidebar() {
             </svg>
           </div>
           <div class="brand-text">
-            <span class="brand-name">Stockbit</span>
+            <span class="brand-name">Edart</span>
             <span class="brand-version">Dashboard</span>
           </div>
         </div>
