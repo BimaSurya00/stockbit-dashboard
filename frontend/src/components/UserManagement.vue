@@ -11,6 +11,7 @@ const message = ref('')
 const messageType = ref('')
 const regForm = reactive({ username: '', password: '', role: 'user' })
 const regLoading = ref(false)
+const confirmDelete = ref(null)
 
 const adminCount = computed(() => users.value.filter(u => u.role === 'admin').length)
 const activeCount = computed(() => users.value.filter(u => u.isActive).length)
@@ -58,13 +59,20 @@ async function toggleActive(user) {
 }
 
 async function deleteUser(user) {
-  if (!confirm(`Delete user "${user.username}"?`)) return
+  confirmDelete.value = user
+}
+
+async function confirmDeleteUser() {
+  const user = confirmDelete.value
+  if (!user) return
   try {
     await axios.delete(`/api/admin/users/${user._id}`)
     users.value = users.value.filter(u => u._id !== user._id)
     flash(`User ${user.username} deleted`)
   } catch (err) {
     flash(err.response?.data?.error || err.message, 'error')
+  } finally {
+    confirmDelete.value = null
   }
 }
 
@@ -165,6 +173,27 @@ async function registerUser() {
 
     <Transition name="toast">
       <div v-if="message" class="toast" :class="messageType">{{ message }}</div>
+    </Transition>
+
+    <Transition name="modal">
+      <div v-if="confirmDelete" class="modal-overlay" @click.self="confirmDelete = null">
+        <div class="modal-card">
+          <div class="modal-icon">
+            <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>
+            </svg>
+          </div>
+          <h3 class="modal-title">Delete User</h3>
+          <p class="modal-desc">
+            Are you sure you want to delete <strong>"{{ confirmDelete.username }}"</strong>?<br>
+            This action cannot be undone.
+          </p>
+          <div class="modal-actions">
+            <button class="modal-btn btn-cancel" @click="confirmDelete = null">Cancel</button>
+            <button class="modal-btn btn-delete" @click="confirmDeleteUser">Delete</button>
+          </div>
+        </div>
+      </div>
     </Transition>
   </div>
 </template>
@@ -278,4 +307,52 @@ async function registerUser() {
   .add-field-sm { flex: 1; min-width: unset; }
   .btn-add { width: 100%; justify-content: center; }
 }
+
+.modal-overlay {
+  position: fixed; inset: 0; z-index: 3000;
+  background: rgba(15, 23, 42, 0.45);
+  backdrop-filter: blur(4px);
+  display: flex; align-items: center; justify-content: center;
+  padding: 20px;
+}
+.modal-card {
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: var(--radius); padding: 32px;
+  max-width: 400px; width: 100%;
+  box-shadow: 0 25px 50px -12px rgba(0,0,0,0.25);
+  text-align: center;
+  animation: modal-in 0.2s ease-out;
+}
+@keyframes modal-in { from { opacity: 0; transform: scale(0.95) translateY(10px); } to { opacity: 1; transform: scale(1) translateY(0); } }
+.modal-icon {
+  width: 56px; height: 56px; border-radius: 50%;
+  background: rgba(239, 58, 58, 0.08); color: var(--red);
+  display: flex; align-items: center; justify-content: center;
+  margin: 0 auto 16px;
+}
+.modal-title {
+  font-family: 'DM Sans', 'Inter', sans-serif; font-size: 20px; font-weight: 700;
+  color: var(--text); margin: 0 0 8px;
+}
+.modal-desc {
+  font-size: 14px; color: var(--text2); line-height: 1.6; margin: 0 0 24px;
+}
+.modal-desc strong { color: var(--text); font-weight: 600; }
+.modal-actions { display: flex; gap: 12px; justify-content: center; }
+.modal-btn {
+  height: 44px; padding: 0 24px; border: none; border-radius: 12px;
+  font-family: inherit; font-size: 14px; font-weight: 600; cursor: pointer;
+  transition: all 0.2s;
+}
+.btn-cancel { background: var(--bg); color: var(--text2); }
+.btn-cancel:hover { background: var(--border); color: var(--text); }
+.btn-delete { background: var(--red); color: white; }
+.btn-delete:hover { background: #d32f2f; transform: translateY(-1px); box-shadow: 0 4px 12px rgba(239,58,58,0.35); }
+
+.modal-enter-active { transition: all 0.2s ease-out; }
+.modal-leave-active { transition: all 0.15s ease-in; }
+.modal-enter-from { opacity: 0; }
+.modal-enter-from .modal-card { opacity: 0; transform: scale(0.95) translateY(10px); }
+.modal-leave-to { opacity: 0; }
+.modal-leave-to .modal-card { opacity: 0; transform: scale(0.95) translateY(10px); }
 </style>
