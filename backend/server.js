@@ -1396,6 +1396,19 @@ app.post('/api/ai/ask', async (req, res) => {
         }
       }
 
+      if (volumes.length === 0 || volumes.every(v => v === 0)) {
+        try {
+          const { fetchStockData } = require('./lib/yahoo-finance');
+          const yahooData = await fetchStockData(symbol.toUpperCase(), 365);
+          if (yahooData && yahooData.length > 0) {
+            volumes = yahooData.map(d => Number(d.volume) || 0);
+            console.log('[AI] Yahoo volume OK:', volumes.filter(v => v > 0).length, 'days');
+          }
+        } catch (e) {
+          console.log('[AI] Yahoo Finance gagal:', e.message);
+        }
+      }
+
       if (closePrices.length >= 20) {
         try {
           const { calculate } = require('./lib/technical-analysis');
