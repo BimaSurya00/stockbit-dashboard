@@ -92,6 +92,7 @@ KONTEKS DATA SAAT INI:\n`;
       if (ti.sma200 && ti.sma200 !== '-') prompt += `- SMA200: ${ti.sma200}\n`;
       prompt += `- RSI(14): ${ti.rsi14} (>70 overbought, <30 oversold)\n`;
       prompt += `- MACD: ${ti.macd} | Signal: ${ti.macdSignal} | Histogram: ${ti.macdHistogram}\n`;
+      prompt += `- Volume: ${ti.volume} (rata2 10 hari: ${ti.avgVolume10})\n`;
       prompt += `WAJIB: Sertakan analisa teknikal menggunakan data di atas dalam jawabanmu.\n`;
     } else {
       prompt += `\nINDIKATOR TEKNIKAL TERSEDIA di halaman Chart dashboard (SMA, EMA, RSI, MACD, Bollinger, dll).\n`;

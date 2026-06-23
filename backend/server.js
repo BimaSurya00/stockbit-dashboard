@@ -1362,6 +1362,7 @@ app.post('/api/ai/ask', async (req, res) => {
       context.symbol = symbol.toUpperCase();
 
       let closePrices = [];
+      let volumes = [];
       let priceMeta = null;
 
       try {
@@ -1369,16 +1370,17 @@ app.post('/api/ai/ask', async (req, res) => {
         const stockbitRes = await client.get(`/charts/${symbol.toUpperCase()}/daily`, {
           params: { timeframe: '1d', is_include_previous_historical: 'true', _t: Date.now() }
         });
-        const prices = stockbitRes.data?.data?.prices;
-        if (prices && prices.length > 0) {
+        const rawPrices = stockbitRes.data?.data?.prices;
+        if (rawPrices && rawPrices.length > 0) {
           priceMeta = {
-            lastPrice: parseFloat(prices[prices.length - 1]?.value) || 0,
-            change: prices[prices.length - 1]?.change || 0,
-            changePercent: prices[prices.length - 1]?.percentage || '0'
+            lastPrice: parseFloat(rawPrices[rawPrices.length - 1]?.value) || 0,
+            change: rawPrices[rawPrices.length - 1]?.change || 0,
+            changePercent: rawPrices[rawPrices.length - 1]?.percentage || '0'
           };
-          closePrices = prices
+          closePrices = rawPrices
             .map(p => (typeof p.value === 'string' ? parseFloat(p.value.replace(/,/g, '')) : Number(p.value)))
             .filter(v => !isNaN(v) && v > 0);
+          volumes = rawPrices.map(p => Number(p.volume) || 0);
           console.log('[AI] Live chart OK:', stockbitRes.status, '|', closePrices.length, 'points');
         }
       } catch (apiErr) {
@@ -1389,6 +1391,7 @@ app.post('/api/ai/ask', async (req, res) => {
           closePrices = dbData.prices
             .map(p => (typeof p.value === 'string' ? parseFloat(p.value.replace(/,/g, '')) : Number(p.value)))
             .filter(v => !isNaN(v) && v > 0);
+          volumes = dbData.prices.map(p => Number(p.volume) || 0);
           console.log('[AI] MongoDB fallback OK:', closePrices.length, 'points');
         }
       }
@@ -1415,8 +1418,12 @@ app.post('/api/ai/ask', async (req, res) => {
             macd: last(macd.data.MACD).toFixed(2),
             macdSignal: last(macd.data.signal).toFixed(2),
             macdHistogram: last(macd.data.histogram).toFixed(2),
+            volume: volumes.length > 0 ? volumes[volumes.length - 1].toLocaleString() : '-',
+            avgVolume10: volumes.length >= 10
+              ? Math.round(volumes.slice(-10).reduce((a, b) => a + b, 0) / 10).toLocaleString()
+              : '-',
           };
-          console.log('[AI] Indikator OK:', context.technicalIndicators.lastPrice, '| RSI:', context.technicalIndicators.rsi14);
+          console.log('[AI] Indikator OK:', context.technicalIndicators.lastPrice, '| RSI:', context.technicalIndicators.rsi14, '| Vol:', context.technicalIndicators.volume);
         } catch (e) {
           console.error('[AI] Gagal kalkulasi indikator:', symbol, e.message);
         }
@@ -1462,7 +1469,7 @@ app.post('/api/ai/ask', async (req, res) => {
     let fullResponse = '';
 
     const enrichedQuestion = context.technicalIndicators
-      ? `[DATA TEKNIKAL ${context.symbol}]\nHarga: ${context.technicalIndicators.lastPrice} | SMA20: ${context.technicalIndicators.sma20} | SMA50: ${context.technicalIndicators.sma50} | EMA20: ${context.technicalIndicators.ema20} | RSI14: ${context.technicalIndicators.rsi14} | MACD: ${context.technicalIndicators.macd} (signal: ${context.technicalIndicators.macdSignal})\n\nPertanyaan user: ${question}`
+      ? `[DATA TEKNIKAL ${context.symbol}]\nHarga: ${context.technicalIndicators.lastPrice} | SMA20: ${context.technicalIndicators.sma20} | SMA50: ${context.technicalIndicators.sma50} | EMA20: ${context.technicalIndicators.ema20} | RSI14: ${context.technicalIndicators.rsi14} | MACD: ${context.technicalIndicators.macd} (signal: ${context.technicalIndicators.macdSignal}) | Volume: ${context.technicalIndicators.volume} (avg10: ${context.technicalIndicators.avgVolume10})\n\nPertanyaan user: ${question}`
       : question;
 
     await chatWithContext(enrichedQuestion, context, (chunk) => {
