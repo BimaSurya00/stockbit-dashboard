@@ -1182,6 +1182,24 @@ function toggleSidebar() {
 </style>
 
 <style>
+:root {
+  --bg: #F8FAFC;
+  --surface: #FFFFFF;
+  --text: #0F172A;
+  --text-soft: #475569;
+  --text-muted: #94A3B8;
+  --text2: #475569;
+  --text3: #94A3B8;
+  --border: rgba(0, 0, 0, 0.05);
+  --shadow-sm: 0 1px 2px rgba(0,0,0,0.04);
+  --shadow-md: 0 4px 20px rgba(0,0,0,0.06);
+  --shadow-lg: 0 8px 30px rgba(0,0,0,0.08);
+  --radius-sm: 10px;
+  --radius-md: 14px;
+  --radius-lg: 18px;
+  --blue: #205BFC; --green: #21BF73; --red: #EF3A3A;
+}
+
 html.dark {
   --bg: #0F172A !important;
   --surface: #1E293B !important;

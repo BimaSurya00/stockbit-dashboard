@@ -299,8 +299,7 @@ onMounted(() => { fetchEmitens() })
   font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
   color: #0F172A;
   --blue: #205BFC; --green: #21BF73; --red: #EF3A3A;
-  --bg: #F8FAFC; --surface: #FFFFFF; --text: #0F172A; --text2: #475569; --text3: #94A3B8;
-  --border: rgba(0,0,0,0.05); --radius: 20px; --radius-sm: 14px;
+   --border: rgba(0,0,0,0.05); --radius: 20px; --radius-sm: 14px;
   --shadow: 0 1px 3px rgba(0,0,0,0.04), 0 1px 2px rgba(0,0,0,0.04);
   --shadow-hover: 0 4px 20px rgba(0,0,0,0.07);
   --transition: all 0.2s ease;
@@ -484,7 +483,7 @@ tbody td.right { text-align: right; font-variant-numeric: tabular-nums; }
   font-family: 'Inter', sans-serif; font-size: 13px; font-weight: 600;
   cursor: pointer; transition: var(--transition);
 }
-.btn-primary:hover { background: #1E293B; transform: translateY(-1px); box-shadow: 0 4px 12px rgba(0,0,0,0.15); }
+.btn-primary:hover { background: var(--text); transform: translateY(-1px); box-shadow: 0 4px 12px rgba(0,0,0,0.15); }
 
 @media (max-width: 768px) {
   .page-header { flex-direction: column; align-items: flex-start; }

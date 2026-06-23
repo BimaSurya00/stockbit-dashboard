@@ -39,8 +39,7 @@ const currentTab = ref('top')
 .broker-page {
   font-family: 'Inter', sans-serif;
   color: #0F172A;
-  --text: #0F172A; --text2: #475569; --text3: #94A3B8;
-  --bg: #F8FAFC; --surface: #FFFFFF; --border: rgba(0,0,0,0.05);
+   --border: rgba(0,0,0,0.05);
 }
 .page-header { margin-bottom: 16px; }
 .page-title { font-family: 'DM Sans', 'Inter', sans-serif; font-size: 28px; font-weight: 800; margin: 0; letter-spacing: -1px; color: var(--text); }

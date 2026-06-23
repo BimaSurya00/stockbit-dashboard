@@ -100,8 +100,7 @@ async function updateToken() {
 .monitor-page {
   font-family: 'Inter', sans-serif; color: #0F172A;
   --blue: #205BFC; --green: #21BF73; --red: #EF3A3A;
-  --bg: #F8FAFC; --surface: #FFFFFF; --text: #0F172A; --text2: #475569; --text3: #94A3B8;
-  --border: rgba(0,0,0,0.05); --radius: 20px;
+   --border: rgba(0,0,0,0.05); --radius: 20px;
 }
 .page-header { margin-bottom: 16px; }
 .page-title { font-family: 'DM Sans', sans-serif; font-size: 28px; font-weight: 800; margin: 0; letter-spacing: -1px; color: var(--text); }

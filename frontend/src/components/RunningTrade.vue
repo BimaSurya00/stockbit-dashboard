@@ -208,8 +208,7 @@ onUnmounted(() => { stopAutoRefresh() })
   font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
   color: #0F172A; height: 100%; display: flex; flex-direction: column;
   --green: #21BF73; --red: #EF3A3A; --blue: #205BFC;
-  --text: #0F172A; --text2: #475569; --text3: #94A3B8;
-  --border: rgba(0,0,0,0.05); --radius: 10px;
+   --border: rgba(0,0,0,0.05); --radius: 10px;
   --transition: all 0.2s ease;
 }
 

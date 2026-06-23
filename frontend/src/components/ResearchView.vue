@@ -188,10 +188,9 @@ onMounted(() => {
 <style scoped>
 .research-page {
   font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
-  color: #0F172A;
+  color: var(--text);
   --blue: #205BFC; --green: #21BF73; --red: #EF3A3A;
-  --bg: #F8FAFC; --surface: #FFFFFF; --text: #0F172A; --text2: #475569; --text3: #94A3B8;
-  --border: rgba(0,0,0,0.05); --radius: 20px; --radius-sm: 14px;
+   --border: rgba(0,0,0,0.05); --radius: 20px; --radius-sm: 14px;
   --shadow: 0 1px 3px rgba(0,0,0,0.04), 0 1px 2px rgba(0,0,0,0.04);
   --shadow-hover: 0 4px 20px rgba(0,0,0,0.07), 0 1px 4px rgba(0,0,0,0.04);
 }
