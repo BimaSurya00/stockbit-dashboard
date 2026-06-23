@@ -225,7 +225,7 @@ onUnmounted(() => { stopAutoRefresh() })
 .status-dot { width: 6px; height: 6px; border-radius: 50%; }
 .rt-market-status.open .status-dot { background: var(--green); }
 .rt-market-status.closed .status-dot { background: var(--red); }
-.rt-refresh { width: 32px; height: 32px; display: flex; align-items: center; justify-content: center; border: 1px solid var(--border); background: white; border-radius: var(--radius); cursor: pointer; color: var(--text2); transition: var(--transition); }
+.rt-refresh { width: 32px; height: 32px; display: flex; align-items: center; justify-content: center; border: 1px solid var(--border); background: var(--surface); border-radius: var(--radius); cursor: pointer; color: var(--text2); transition: var(--transition); }
 .rt-refresh:hover { border-color: rgba(0,0,0,0.12); color: var(--text); }
 .spinning { animation: spin 1.5s linear infinite; }
 @keyframes spin { to { transform: rotate(360deg); } }
@@ -256,7 +256,7 @@ onUnmounted(() => { stopAutoRefresh() })
 .rts-value { font-size: 10px; color: var(--text3); font-weight: 600; margin-top: 2px; }
 
 /* PRESSURE BAR */
-.rt-pressure { margin-bottom: 12px; padding: 10px; background: #F8FAFC; border-radius: var(--radius); }
+.rt-pressure { margin-bottom: 12px; padding: 10px; background: var(--bg); border-radius: var(--radius); }
 .rt-pressure-label { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; font-size: 11px; color: var(--text2); }
 .rt-pressure-value { display: flex; gap: 6px; align-items: center; }
 .pressure-buy { color: var(--green); font-weight: 700; }
@@ -267,7 +267,7 @@ onUnmounted(() => { stopAutoRefresh() })
 .rt-pressure-fill.sell { background: var(--red); transition: width 0.5s ease; }
 
 /* LEGEND */
-.rt-legend { display: flex; gap: 12px; margin-bottom: 12px; padding: 8px 10px; background: #F8FAFC; border-radius: 8px; }
+.rt-legend { display: flex; gap: 12px; margin-bottom: 12px; padding: 8px 10px; background: var(--bg); border-radius: 8px; }
 .rt-legend-item { display: flex; align-items: center; gap: 5px; font-size: 11px; color: var(--text2); }
 .rt-legend-tag { display: flex; align-items: center; justify-content: center; width: 18px; height: 18px; border-radius: 4px; font-size: 9px; font-weight: 800; }
 .rt-legend-tag.buy { background: rgba(33,191,115,0.15); color: var(--green); }
@@ -281,7 +281,7 @@ onUnmounted(() => { stopAutoRefresh() })
 /* TRADE LIST */
 .rt-list { flex: 1; overflow-y: auto; display: flex; flex-direction: column; gap: 3px; }
 .rt-row { display: grid; grid-template-columns: 52px 28px 1fr 48px 60px; align-items: center; gap: 6px; padding: 7px 10px; border-radius: 8px; font-size: 13px; cursor: default; transition: background 0.15s ease; }
-.rt-row:hover { background: #F8FAFC; }
+.rt-row:hover { background: var(--bg); }
 .rt-row.buy { background: rgba(33,191,115,0.03); }
 .rt-row.sell { background: rgba(239,58,58,0.03); }
 .rt-row.buy:hover { background: rgba(33,191,115,0.08); }

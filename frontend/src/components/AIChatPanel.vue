@@ -325,7 +325,7 @@ onUnmounted(() => {
   right: 0;
   width: 380px;
   height: 540px;
-  background: #FFFFFF;
+  background: var(--surface);
   border-radius: 18px;
   box-shadow: 0 8px 40px rgba(0,0,0,0.12);
   border: 1px solid rgba(0,0,0,0.06);
@@ -350,7 +350,7 @@ onUnmounted(() => {
   justify-content: space-between;
   padding: 16px 18px;
   border-bottom: 1px solid rgba(0,0,0,0.05);
-  background: #F8FAFC;
+  background: var(--bg);
 }
 
 .chat-header-left {
@@ -459,7 +459,7 @@ onUnmounted(() => {
 
 .suggestion-chip {
   padding: 8px 14px;
-  background: #F8FAFC;
+  background: var(--bg);
   border: 1px solid rgba(0,0,0,0.06);
   border-radius: 100px;
   font-family: inherit;
@@ -557,7 +557,7 @@ onUnmounted(() => {
   display: flex;
   align-items: center;
   gap: 8px;
-  background: #FFFFFF;
+  background: var(--surface);
   border: 1px solid rgba(0,0,0,0.08);
   border-radius: 12px;
   padding: 4px;

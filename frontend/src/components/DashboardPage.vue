@@ -42,7 +42,11 @@ const isDark = ref(localStorage.getItem('edart_theme') === 'dark')
 const watchlistPrices = ref({})
 
 watch(watchlist, (v) => localStorage.setItem('edart_watchlist', JSON.stringify(v)), { deep: true })
-watch(isDark, (v) => localStorage.setItem('edart_theme', v ? 'dark' : 'light'))
+watch(isDark, (v) => {
+  document.documentElement.classList.toggle('dark', v)
+  localStorage.setItem('edart_theme', v ? 'dark' : 'light')
+})
+if (isDark.value) document.documentElement.classList.add('dark')
 
 function toggleDark() { isDark.value = !isDark.value }
 function toggleWatchlist(sym) {
@@ -1174,5 +1178,22 @@ function toggleSidebar() {
     flex-direction: column;
     align-items: flex-start;
   }
+}
+</style>
+
+<style>
+html.dark {
+  --bg: #0F172A !important;
+  --surface: #1E293B !important;
+  --text: #F1F5F9 !important;
+  --text-soft: #94A3B8 !important;
+  --text-muted: #64748B !important;
+  --text2: #94A3B8 !important;
+  --text3: #64748B !important;
+  --border: rgba(255, 255, 255, 0.06) !important;
+  --shadow-sm: 0 1px 2px rgba(0,0,0,0.3) !important;
+  --shadow-md: 0 4px 20px rgba(0,0,0,0.4) !important;
+  --shadow-lg: 0 8px 30px rgba(0,0,0,0.5) !important;
+  color-scheme: dark;
 }
 </style>

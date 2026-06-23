@@ -401,7 +401,7 @@ td.down { color: var(--red); font-weight: 600; }
   color: var(--text2); transition: all 0.2s ease;
 }
 .pg-btn:hover:not(:disabled) { border-color: rgba(0,0,0,0.12); background: var(--bg); }
-.pg-btn.active { background: #0F172A; color: white; border-color: #0F172A; }
+.pg-btn.active { background: var(--text); color: var(--surface); border-color: #0F172A; }
 .pg-btn:disabled { opacity: 0.4; cursor: not-allowed; }
 
 .clickable { cursor: pointer; }

@@ -480,6 +480,11 @@ onUnmounted(() => { if (intervalId) clearInterval(intervalId) })
   --shadow: 0 1px 3px rgba(0,0,0,0.04), 0 1px 2px rgba(0,0,0,0.04);
   --shadow-hover: 0 4px 20px rgba(0,0,0,0.07), 0 1px 4px rgba(0,0,0,0.04);
 }
+:global(.dark.app-root) .dashboard-page {
+  --bg: #0F172A; --surface: #1E293B; --text: #F1F5F9;
+  --text2: #94A3B8; --text3: #64748B; --border: rgba(255,255,255,0.06);
+  --shadow: 0 1px 3px rgba(0,0,0,0.3); --shadow-hover: 0 4px 20px rgba(0,0,0,0.4);
+}
 
 /* ─── PAGE ─── */
 .dashboard-page {
@@ -554,7 +559,7 @@ onUnmounted(() => { if (intervalId) clearInterval(intervalId) })
 /* ─── HERO CARD ─── */
 .bento-card.hero-card {
   padding: 0; overflow: hidden;
-  background: linear-gradient(135deg, #FFFFFF 0%, #F8FAFC 100%);
+  background: linear-gradient(135deg, var(--surface) 0%, var(--bg) 100%);
 }
 .hero-inner { display: flex; justify-content: space-between; gap: 32px; padding: 28px 28px 20px; }
 .hero-left { display: flex; flex-direction: column; gap: 12px; }

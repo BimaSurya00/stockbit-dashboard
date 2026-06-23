@@ -456,7 +456,7 @@ tbody td.right { text-align: right; font-variant-numeric: tabular-nums; }
   color: var(--text2); transition: var(--transition);
 }
 .pg-btn:hover:not(:disabled) { border-color: rgba(0,0,0,0.12); background: #F8FAFC; }
-.pg-btn.active { background: #0F172A; color: white; border-color: #0F172A; }
+.pg-btn.active { background: var(--text); color: var(--surface); border-color: #0F172A; }
 .pg-btn:disabled { opacity: 0.4; cursor: not-allowed; }
 .pg-ellipsis { display: flex; align-items: center; justify-content: center; width: 38px; height: 38px; font-size: 14px; font-weight: 600; color: var(--text3); user-select: none; }
 

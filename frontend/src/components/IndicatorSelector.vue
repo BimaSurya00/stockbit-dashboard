@@ -391,7 +391,7 @@ onMounted(fetchIndicators)
 .preset-btn {
   padding: 5px 10px;
   border: 1px solid rgba(0,0,0,0.08);
-  background: #F8FAFC;
+  background: var(--bg);
   border-radius: 6px;
   font-size: 11px;
   font-weight: 600;
@@ -585,7 +585,7 @@ onMounted(fetchIndicators)
   font-family: 'SF Mono', 'Fira Code', monospace;
   font-weight: 600;
   color: #0F172A;
-  background: white;
+  background: var(--surface);
   text-align: center;
 }
 
