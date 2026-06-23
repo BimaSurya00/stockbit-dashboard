@@ -2,6 +2,7 @@
 import { ref, computed, onMounted, onUnmounted } from 'vue'
 import axios from 'axios'
 import { Line, Bar, Doughnut } from 'vue-chartjs'
+import StockChart from './StockChart.vue'
 import {
   Chart as ChartJS,
   Title, Tooltip, Legend, LineElement, BarElement,
@@ -26,6 +27,8 @@ const error = ref('')
 const lastUpdated = ref(new Date())
 const highlightSymbols = ['BBCA', 'BBRI', 'TLKM']
 const highlightData = ref({})
+const candleSymbol = ref('BBCA')
+const showCandle = ref(false)
 
 const emit = defineEmits(['select-emiten'])
 
@@ -338,6 +341,25 @@ onUnmounted(() => { if (intervalId) clearInterval(intervalId) })
           </span>
           <span class="ticker-label">24h change</span>
         </div>
+      </div>
+
+      <div class="bento-card candle-section" v-if="showCandle">
+        <div class="candle-header">
+          <h3 class="card-title">Candlestick Chart</h3>
+          <div class="candle-controls">
+            <input v-model="candleSymbol" class="candle-input" placeholder="Symbol" maxlength="4" @keyup.enter="candleSymbol = candleSymbol.toUpperCase()" />
+            <button class="candle-apply" @click="candleSymbol = candleSymbol.toUpperCase()">View</button>
+          </div>
+        </div>
+        <div class="candle-chart-wrap">
+          <StockChart :symbol="candleSymbol" />
+        </div>
+      </div>
+      <div class="bento-card" v-else>
+        <button class="candle-toggle" @click="showCandle = true">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="3" width="3" height="18"/><rect x="8" y="7" width="3" height="14"/><rect x="14" y="12" width="3" height="9"/><rect x="20" y="5" width="3" height="16"/></svg>
+          Open Candlestick Chart
+        </button>
       </div>
 
       <!-- SENTIMENT GAUGE (1 col, row 2) -->
@@ -713,4 +735,26 @@ onUnmounted(() => { if (intervalId) clearInterval(intervalId) })
   .hero-value { font-size: 36px; }
   .card-header { flex-wrap: wrap; gap: 8px; }
 }
+.candle-section { grid-column: span 3; }
+.candle-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px; }
+.candle-controls { display: flex; gap: 8px; align-items: center; }
+.candle-input {
+  width: 80px; height: 36px; padding: 0 10px; border: 1px solid var(--border);
+  border-radius: 10px; font-family: 'DM Sans', monospace; font-size: 13px; font-weight: 700;
+  text-align: center; text-transform: uppercase; background: var(--bg); color: var(--text); outline: none;
+}
+.candle-input:focus { border-color: var(--primary); }
+.candle-apply {
+  height: 36px; padding: 0 16px; background: var(--primary); color: white;
+  border: none; border-radius: 10px; font-family: inherit; font-size: 12px; font-weight: 600; cursor: pointer;
+}
+.candle-apply:hover { background: #1a4fd4; }
+.candle-chart-wrap { height: 420px; }
+.candle-toggle {
+  width: 100%; padding: 16px; background: var(--bg); border: 1px dashed var(--border);
+  border-radius: var(--radius-md); color: var(--text-soft); font-family: inherit; font-size: 14px;
+  font-weight: 600; cursor: pointer; display: flex; align-items: center; justify-content: center;
+  gap: 8px; transition: all 0.2s;
+}
+.candle-toggle:hover { background: var(--surface); border-color: var(--primary); color: var(--primary); }
 </style>
