@@ -1333,10 +1333,25 @@ app.get('/api/ai/sentiment-stats', async (req, res) => {
 
 app.post('/api/ai/ask', async (req, res) => {
   try {
-    const { question, symbol } = req.body;
+    let { question, symbol } = req.body;
 
     if (!question) {
       return res.status(400).json({ error: 'Pertanyaan tidak boleh kosong' });
+    }
+
+    if (!symbol) {
+      const matches = question.toUpperCase().match(/\b([A-Z]{4})\b/g);
+      if (matches) {
+        const found = await Emiten.findOne({ symbol: { $in: matches }, isActive: true }).select('symbol').lean();
+        if (found) symbol = found.symbol;
+      }
+      if (!symbol) {
+        const anyMatch = question.match(/\b([A-Za-z]{3,5})\b/g);
+        if (anyMatch) {
+          const found = await Emiten.findOne({ symbol: { $in: anyMatch.map(s => s.toUpperCase()) }, isActive: true }).select('symbol').lean();
+          if (found) symbol = found.symbol;
+        }
+      }
     }
 
     // Provider & API key validation handled by gemini.js getProvider()
