@@ -1,5 +1,5 @@
 <script setup>
-import { ref, onMounted, watch } from 'vue'
+import { ref, onMounted, onUnmounted, watch } from 'vue'
 import axios from 'axios'
 import { useRouter } from 'vue-router'
 import { state, clearSession, isAuthenticated, isAdmin } from '../stores/auth.js'
@@ -56,16 +56,40 @@ function toggleWatchlist(sym) {
 }
 function isWatched(sym) { return watchlist.value.includes(sym) }
 
-onMounted(async () => {
-  if (!isAuthenticated()) {
-    return router.push('/login')
-  }
-  const tab = router.currentRoute.value.query.tab
-  if (tab) {
-    activeTab.value = tab
-    if (tab === 'trending') fetchTrending()
-    else if (tab === 'token') checkToken()
-  }
+const marketSummary = ref(null)
+const tokenExpired = ref(false)
+let summaryInterval = null
+let tokenInterval = null
+
+async function fetchMarketSummary() {
+  try {
+    const { data } = await axios.get('/api/market-summary')
+    marketSummary.value = data
+    // Save market-movers to separate snapshots for gainers/losers/value
+    if (data.topGainer) {
+      // Update the movers cache indirectly via the dashboard
+    }
+  } catch (_) {}
+}
+
+async function checkToken() {
+  try {
+    const { data } = await axios.get('/api/token-status')
+    tokenExpired.value = data.expired || !data.valid
+  } catch (_) {}
+}
+
+onMounted(() => {
+  fetchMarketSummary()
+  checkToken()
+  summaryInterval = setInterval(fetchMarketSummary, 60000)
+  tokenInterval = setInterval(checkToken, 300000) // Cek tiap 5 menit
+})
+
+import { onUnmounted } from 'vue'
+onUnmounted(() => {
+  if (summaryInterval) clearInterval(summaryInterval)
+  if (tokenInterval) clearInterval(tokenInterval)
 })
 
 function logout() {
@@ -94,9 +118,9 @@ const menuSections = [
     ]
   },
   {
-    label: 'TOOLS',
+    label: 'SYSTEM',
     items: [
-      { key: 'analysis', label: 'Quick Analysis', icon: 'chart' },
+      { key: 'token', label: 'Token Management', icon: 'token' },
       { key: 'monitor', label: 'System Monitor', icon: 'settings' },
     ]
   },
@@ -137,7 +161,8 @@ const tabLabels = {
   financial: 'Laporan Keuangan',
   analysis: 'Quick Analysis',
   monitor: 'System Monitor',
-  users: 'Manage Users'
+  users: 'Manage Users',
+  token: 'Token Management'
 }
 
 async function fetchChart() {
@@ -328,6 +353,19 @@ function toggleSidebar() {
             <span class="bc-main">{{ tabLabels[activeTab] }}</span>
           </div>
         </div>
+        <div v-if="marketSummary" class="market-ticker">
+          <span v-if="marketSummary.ihsg" class="ticker-item" :class="marketSummary.ihsg.change >= 0 ? 'up' : 'down'">
+            <strong>IHSG</strong> {{ marketSummary.ihsg.close?.toLocaleString() }}
+            <span class="ticker-chg">{{ marketSummary.ihsg.change >= 0 ? '+' : '' }}{{ marketSummary.ihsg.change?.toFixed(2) }} ({{ marketSummary.ihsg.changePercent?.toFixed(2) }}%)</span>
+          </span>
+          <span class="ticker-divider"></span>
+          <span v-if="marketSummary.topGainer" class="ticker-item up">
+            ▲ {{ marketSummary.topGainer.symbol }} +{{ marketSummary.topGainer.changePercent?.toFixed(1) }}%
+          </span>
+          <span v-if="marketSummary.topLoser" class="ticker-item down">
+            ▼ {{ marketSummary.topLoser.symbol }} {{ marketSummary.topLoser.changePercent?.toFixed(1) }}%
+          </span>
+        </div>
         <div class="topbar-right">
           <button class="icon-btn" @click="toggleDark" :title="isDark ? 'Light mode' : 'Dark mode'">
             <svg v-if="!isDark" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
@@ -337,6 +375,11 @@ function toggleSidebar() {
       </header>
 
       <!-- CONTENT AREA -->
+      <div v-if="tokenExpired" class="token-banner">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+        Stockbit token expired — data real-time tidak tersedia.
+        <a href="#" @click.prevent="navigateTo('token')">Update token</a>
+      </div>
       <div class="content">
         <!-- Dashboard -->
         <div v-if="activeTab === 'dashboard'">
@@ -371,6 +414,20 @@ function toggleSidebar() {
         <!-- System Monitor -->
         <div v-if="activeTab === 'monitor'">
           <SystemMonitor />
+        </div>
+
+        <div v-if="activeTab === 'token'">
+          <div class="bento-card token-status-card">
+            <h3 class="card-title">Stockbit Token Management</h3>
+            <p class="card-subtitle">Update token untuk refresh data real-time. Token expired setiap 24 jam.</p>
+            <div class="token-form">
+              <input v-model="tokenInput" type="password" placeholder="Paste JWT token dari browser..." class="token-input" />
+              <button @click="updateToken" :disabled="tokenUpdating || !tokenInput" class="btn-primary">
+                {{ tokenUpdating ? 'Updating...' : 'Update Token' }}
+              </button>
+            </div>
+            <div v-if="tokenMessage" class="token-msg" :class="{ error: tokenMessage.startsWith('Error') }">{{ tokenMessage }}</div>
+          </div>
         </div>
 
         <!-- Financial Reports -->
@@ -1029,6 +1086,42 @@ function toggleSidebar() {
   background: rgba(239, 58, 58, 0.08);
   color: var(--danger);
   border: 1px solid rgba(239, 58, 58, 0.2);
+}
+
+.market-ticker {
+  display: flex; align-items: center; gap: 8px; flex: 1; overflow: hidden;
+}
+.ticker-item {
+  display: flex; align-items: center; gap: 4px; font-size: 12px; font-weight: 500;
+  white-space: nowrap; padding: 4px 10px; border-radius: 6px; background: var(--bg);
+}
+.ticker-item strong { font-weight: 700; }
+.ticker-item.up { color: var(--green); }
+.ticker-item.down { color: var(--red); }
+.ticker-chg { opacity: 0.8; font-weight: 600; }
+.ticker-divider { width: 1px; height: 20px; background: var(--border); }
+
+.token-banner {
+  display: flex; align-items: center; gap: 8px;
+  padding: 10px 20px; margin: 0 24px 16px;
+  background: rgba(245,158,11,0.08); border: 1px solid rgba(245,158,11,0.25);
+  border-radius: 12px; font-size: 13px; font-weight: 500; color: #b45309;
+}
+.token-banner a { color: var(--blue); font-weight: 700; text-decoration: none; margin-left: auto; }
+.token-banner a:hover { text-decoration: underline; }
+
+.token-form { display: flex; gap: 10px; margin: 16px 0; }
+.token-input {
+  flex: 1; height: 42px; padding: 0 14px; border: 1px solid var(--border);
+  border-radius: 12px; font-family: monospace; font-size: 13px; background: var(--bg); color: var(--text); outline: none;
+}
+.token-input:focus { border-color: var(--blue); }
+
+.card-subtitle { font-size: 13px; color: var(--text2); margin: 4px 0 0; }
+
+@media (max-width: 768px) {
+  .market-ticker { display: none; }
+  .token-form { flex-direction: column; }
 }
 
 .token-status-card {

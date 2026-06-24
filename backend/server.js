@@ -29,6 +29,7 @@ app.use('/api/news', require('./routes/news'));
 app.use('/api/ai', require('./routes/ai'));
 app.use('/api', require('./routes/misc'));
 app.use('/api', require('./routes/system'));
+app.use('/api/market-summary', require('./routes/summary'));
 
 // ─── Startup ───
 async function startup() {
