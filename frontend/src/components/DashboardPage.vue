@@ -72,7 +72,7 @@ async function fetchMarketSummary() {
   } catch (_) {}
 }
 
-async function checkToken() {
+async function checkTokenExpiry() {
   try {
     const { data } = await axios.get('/api/token-status')
     tokenExpired.value = data.expired || !data.valid
@@ -81,9 +81,9 @@ async function checkToken() {
 
 onMounted(() => {
   fetchMarketSummary()
-  checkToken()
+  checkTokenExpiry()
   summaryInterval = setInterval(fetchMarketSummary, 60000)
-  tokenInterval = setInterval(checkToken, 300000) // Cek tiap 5 menit
+  tokenInterval = setInterval(checkTokenExpiry, 300000)
 })
 
 onUnmounted(() => {
