@@ -561,7 +561,7 @@ onUnmounted(() => { if (intervalId) clearInterval(intervalId) })
 .hero-badge-wrap { display: flex; align-items: center; gap: 12px; }
 .hero-pill {
   font-family: 'DM Sans', sans-serif; font-size: 13px; font-weight: 800;
-  background: var(--text); color: white; padding: 5px 14px; border-radius: 8px; letter-spacing: 0.5px;
+  background: var(--text); color: var(--surface); padding: 5px 14px; border-radius: 8px; letter-spacing: 0.5px;
 }
 .hero-subtitle { font-size: 14px; color: var(--text2); font-weight: 500; }
 .hero-value-row { display: flex; align-items: baseline; gap: 14px; }
@@ -581,7 +581,7 @@ onUnmounted(() => { if (intervalId) clearInterval(intervalId) })
 .hs-val.accent { color: var(--blue); }
 .hero-footer {
   display: flex; gap: 24px; padding: 14px 28px;
-  border-top: 1px solid var(--border); background: rgba(0,0,0,0.01);
+  border-top: 1px solid var(--border); background: rgba(128,128,128,0.03);
 }
 .hf-item { font-size: 12px; font-weight: 600; display: flex; align-items: center; gap: 4px; }
 .hf-item.up { color: var(--green); }
