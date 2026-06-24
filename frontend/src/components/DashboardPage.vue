@@ -20,7 +20,6 @@ import NewsView from './NewsView.vue'
 import IpoView from './IpoView.vue'
 import MarketMovers from './MarketMovers.vue'
 import AIChatPanel from './AIChatPanel.vue'
-import ResearchView from './ResearchView.vue'
 
 const router = useRouter()
 
@@ -114,14 +113,12 @@ const menuSections = [
       { key: 'movers', label: 'Movers', icon: 'activity' },
       { key: 'financial', label: 'Laporan Keuangan', icon: 'file-text' },
       { key: 'news', label: 'Berita', icon: 'file-text' },
-      { key: 'research', label: 'Riset & Snips', icon: 'search' },
       { key: 'ipo', label: 'IPO', icon: 'activity' },
     ]
   },
   {
     label: 'SYSTEM',
     items: [
-      { key: 'token', label: 'Token Management', icon: 'token' },
       { key: 'monitor', label: 'System Monitor', icon: 'settings' },
     ]
   },
@@ -158,13 +155,11 @@ const tabLabels = {
   broker: 'Broker',
   news: 'Berita',
   ipo: 'IPO',
-  research: 'Riset & Snips',
   movers: 'Market Movers',
   financial: 'Laporan Keuangan',
   analysis: 'Quick Analysis',
   monitor: 'System Monitor',
-  users: 'Manage Users',
-  token: 'Token Management'
+  users: 'Manage Users'
 }
 
 async function fetchChart() {
@@ -380,7 +375,7 @@ function toggleSidebar() {
       <div v-if="tokenExpired" class="token-banner">
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
         Stockbit token expired — data real-time tidak tersedia.
-        <a href="#" @click.prevent="navigateTo('token')">Update token</a>
+        <a href="#" @click.prevent="navigateTo('monitor')">Update token</a>
       </div>
       <div class="content">
         <!-- Dashboard -->
@@ -418,20 +413,6 @@ function toggleSidebar() {
           <SystemMonitor />
         </div>
 
-        <div v-if="activeTab === 'token'">
-          <div class="bento-card token-status-card">
-            <h3 class="card-title">Stockbit Token Management</h3>
-            <p class="card-subtitle">Update token untuk refresh data real-time. Token expired setiap 24 jam.</p>
-            <div class="token-form">
-              <input v-model="tokenInput" type="password" placeholder="Paste JWT token dari browser..." class="token-input" />
-              <button @click="updateToken" :disabled="tokenUpdating || !tokenInput" class="btn-primary">
-                {{ tokenUpdating ? 'Updating...' : 'Update Token' }}
-              </button>
-            </div>
-            <div v-if="tokenMessage" class="token-msg" :class="{ error: tokenMessage.startsWith('Error') }">{{ tokenMessage }}</div>
-          </div>
-        </div>
-
         <!-- Financial Reports -->
         <div v-if="activeTab === 'financial'">
           <FinancialReports />
@@ -440,9 +421,6 @@ function toggleSidebar() {
         <!-- News -->
         <div v-if="activeTab === 'news'">
           <NewsView />
-        </div>
-        <div v-if="activeTab === 'research'">
-          <ResearchView />
         </div>
         <div v-if="activeTab === 'ipo'">
           <IpoView />
