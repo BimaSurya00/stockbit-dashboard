@@ -86,7 +86,6 @@ onMounted(() => {
   tokenInterval = setInterval(checkToken, 300000) // Cek tiap 5 menit
 })
 
-import { onUnmounted } from 'vue'
 onUnmounted(() => {
   if (summaryInterval) clearInterval(summaryInterval)
   if (tokenInterval) clearInterval(tokenInterval)
