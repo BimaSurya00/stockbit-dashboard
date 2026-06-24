@@ -80,6 +80,23 @@ const volumeRatioClass = computed(() => {
   return ratio > 1.5 ? 'above' : 'normal'
 })
 
+const orderbook = computed(() => {
+  if (!stockInfo.value?.orderbook) return null
+  const ob = stockInfo.value.orderbook
+  const bidPrice = ob.bid?.price || 0
+  const offerPrice = ob.offer?.price || 0
+  const bidVol = ob.bid?.volume || 0
+  const offerVol = ob.offer?.volume || 0
+  const spread = bidPrice && offerPrice ? offerPrice - bidPrice : 0
+  const spreadPct = bidPrice ? (spread / bidPrice * 100) : 0
+  const totalVol = bidVol + offerVol
+  return {
+    bidPrice, offerPrice, bidVol, offerVol, spread, spreadPct, totalVol,
+    bidPct: totalVol > 0 ? (bidVol / totalVol * 100) : 50,
+    offerPct: totalVol > 0 ? (offerVol / totalVol * 100) : 50,
+  }
+})
+
 async function fetchChart() {
   if (!props.symbol) return
   chartLoading.value = true; chartError.value = ''; chartData.value = null
@@ -218,17 +235,48 @@ fetchInfo()
         </div>
       </div>
 
-      <div class="info-card" v-if="stockInfo.orderbook">
-        <div class="info-label">Orderbook</div>
-        <div class="ob-row">
-          <span class="ob-label">Bid</span>
-          <span class="ob-bid">Rp {{ stockInfo.orderbook.bid.price != null ? stockInfo.orderbook.bid.price.toLocaleString('id-ID') : '-' }}</span>
-          <span class="ob-vol">{{ formatVolume(stockInfo.orderbook.bid.volume) }}</span>
+      <div class="info-card ob-card" v-if="orderbook">
+        <div class="ob-header">
+          <span class="info-label">Order Book</span>
+          <span v-if="orderbook.spread" class="ob-spread">
+            Spread: {{ orderbook.spread.toLocaleString('id-ID') }} ({{ orderbook.spreadPct.toFixed(2) }}%)
+          </span>
         </div>
-        <div class="ob-row">
-          <span class="ob-label">Offer</span>
-          <span class="ob-offer">Rp {{ stockInfo.orderbook.offer.price != null ? stockInfo.orderbook.offer.price.toLocaleString('id-ID') : '-' }}</span>
-          <span class="ob-vol">{{ formatVolume(stockInfo.orderbook.offer.volume) }}</span>
+        <div class="ob-depth">
+          <div class="ob-side ob-bid-side">
+            <div class="ob-level">
+              <span class="ob-side-label bid">Bid</span>
+              <span class="ob-price">Rp {{ orderbook.bidPrice.toLocaleString('id-ID') }}</span>
+              <span class="ob-vol">{{ formatVolume(orderbook.bidVol) }}</span>
+            </div>
+            <div class="ob-bar-wrap">
+              <div class="ob-bar bid-bar" :style="{ width: orderbook.bidPct + '%' }"></div>
+              <span class="ob-pct">{{ orderbook.bidPct.toFixed(0) }}%</span>
+            </div>
+          </div>
+          <div class="ob-mid">
+            <span class="ob-mid-price">Rp {{ ((orderbook.bidPrice + orderbook.offerPrice) / 2 || 0).toLocaleString('id-ID') }}</span>
+          </div>
+          <div class="ob-side ob-offer-side">
+            <div class="ob-level">
+              <span class="ob-side-label offer">Offer</span>
+              <span class="ob-price">Rp {{ orderbook.offerPrice.toLocaleString('id-ID') }}</span>
+              <span class="ob-vol">{{ formatVolume(orderbook.offerVol) }}</span>
+            </div>
+            <div class="ob-bar-wrap">
+              <div class="ob-bar offer-bar" :style="{ width: orderbook.offerPct + '%' }"></div>
+              <span class="ob-pct">{{ orderbook.offerPct.toFixed(0) }}%</span>
+            </div>
+          </div>
+        </div>
+        <div class="ob-ratio">
+          <div class="ob-ratio-bar">
+            <div class="ob-ratio-fill bid-fill" :style="{ width: orderbook.bidPct + '%' }"></div>
+          </div>
+          <div class="ob-ratio-labels">
+            <span>{{ orderbook.bidPct.toFixed(0) }}% Buy</span>
+            <span>{{ orderbook.offerPct.toFixed(0) }}% Sell</span>
+          </div>
         </div>
       </div>
     </div>
@@ -347,6 +395,30 @@ fetchInfo()
 .ob-bid { color: var(--green); font-weight: 600; flex: 1; }
 .ob-offer { color: var(--red); font-weight: 600; flex: 1; }
 .ob-vol { color: var(--text2); font-weight: 500; }
+
+.ob-card { grid-column: 1 / -1; padding: 20px 22px; }
+@media (min-width: 900px) { .ob-card { grid-column: span 2; } }
+.ob-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px; }
+.ob-spread { font-size: 12px; font-weight: 600; color: var(--text2); background: var(--bg); padding: 3px 10px; border-radius: 6px; }
+.ob-depth { display: flex; align-items: stretch; gap: 12px; }
+.ob-side { flex: 1; display: flex; flex-direction: column; gap: 8px; }
+.ob-level { display: flex; align-items: center; gap: 8px; }
+.ob-side-label { font-size: 10px; font-weight: 800; text-transform: uppercase; letter-spacing: 1px; padding: 2px 8px; border-radius: 4px; }
+.ob-side-label.bid { background: rgba(33,191,115,0.1); color: var(--green); }
+.ob-side-label.offer { background: rgba(239,58,58,0.1); color: var(--red); }
+.ob-price { font-family: 'DM Sans', monospace; font-size: 14px; font-weight: 700; color: var(--text); }
+.ob-bar-wrap { display: flex; align-items: center; gap: 8px; height: 20px; }
+.ob-bar { height: 6px; border-radius: 3px; transition: width 0.3s; }
+.bid-bar { background: var(--green); margin-left: auto; }
+.offer-bar { background: var(--red); }
+.ob-pct { font-size: 11px; font-weight: 600; color: var(--text3); min-width: 32px; text-align: right; }
+.ob-mid { display: flex; align-items: center; justify-content: center; width: 2px; background: var(--border); position: relative; }
+.ob-mid-price { position: absolute; white-space: nowrap; font-size: 10px; font-weight: 600; color: var(--text3); top: -22px; }
+.ob-ratio { margin-top: 14px; }
+.ob-ratio-bar { height: 4px; border-radius: 2px; background: var(--border); overflow: hidden; }
+.ob-ratio-fill { height: 100%; border-radius: 2px; transition: width 0.3s; }
+.bid-fill { background: var(--green); }
+.ob-ratio-labels { display: flex; justify-content: space-between; margin-top: 6px; font-size: 11px; font-weight: 600; color: var(--text3); }
 
 /* Timeframe Pills */
 .timeframe-pills { display: flex; gap: 4px; background: var(--bg); border-radius: 100px; padding: 4px; }
