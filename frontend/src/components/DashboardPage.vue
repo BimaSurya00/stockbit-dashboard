@@ -20,6 +20,7 @@ import NewsView from './NewsView.vue'
 import IpoView from './IpoView.vue'
 import MarketMovers from './MarketMovers.vue'
 import AIChatPanel from './AIChatPanel.vue'
+import ResearchView from './ResearchView.vue'
 
 const router = useRouter()
 
@@ -113,6 +114,7 @@ const menuSections = [
       { key: 'movers', label: 'Movers', icon: 'activity' },
       { key: 'financial', label: 'Laporan Keuangan', icon: 'file-text' },
       { key: 'news', label: 'Berita', icon: 'file-text' },
+      { key: 'research', label: 'Riset & Snips', icon: 'search' },
       { key: 'ipo', label: 'IPO', icon: 'activity' },
     ]
   },
@@ -156,6 +158,7 @@ const tabLabels = {
   broker: 'Broker',
   news: 'Berita',
   ipo: 'IPO',
+  research: 'Riset & Snips',
   movers: 'Market Movers',
   financial: 'Laporan Keuangan',
   analysis: 'Quick Analysis',
@@ -438,8 +441,9 @@ function toggleSidebar() {
         <div v-if="activeTab === 'news'">
           <NewsView />
         </div>
-
-        <!-- IPO -->
+        <div v-if="activeTab === 'research'">
+          <ResearchView />
+        </div>
         <div v-if="activeTab === 'ipo'">
           <IpoView />
         </div>
