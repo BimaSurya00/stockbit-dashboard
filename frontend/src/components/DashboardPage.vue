@@ -58,6 +58,7 @@ function isWatched(sym) { return watchlist.value.includes(sym) }
 
 const marketSummary = ref(null)
 const tokenExpired = ref(false)
+const tokenExpiryTime = ref('')
 let summaryInterval = null
 let tokenInterval = null
 
@@ -65,10 +66,6 @@ async function fetchMarketSummary() {
   try {
     const { data } = await axios.get('/api/market-summary')
     marketSummary.value = data
-    // Save market-movers to separate snapshots for gainers/losers/value
-    if (data.topGainer) {
-      // Update the movers cache indirectly via the dashboard
-    }
   } catch (_) {}
 }
 
@@ -76,6 +73,7 @@ async function checkTokenExpiry() {
   try {
     const { data } = await axios.get('/api/token-status')
     tokenExpired.value = data.expired || !data.valid
+    if (data.expiryDate) tokenExpiryTime.value = new Date(data.expiryDate).toLocaleString()
   } catch (_) {}
 }
 
@@ -374,8 +372,8 @@ function toggleSidebar() {
       <!-- CONTENT AREA -->
       <div v-if="tokenExpired" class="token-banner">
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
-        Stockbit token expired — data real-time tidak tersedia.
-        <a href="#" @click.prevent="navigateTo('monitor')">Update token</a>
+        Token expired{{ tokenExpiryTime ? ` — ${tokenExpiryTime}` : '' }}. Data real-time tidak tersedia.
+        <a href="#" @click.prevent="navigateTo('monitor')">Update di System Monitor</a>
       </div>
       <div class="content">
         <!-- Dashboard -->
@@ -1091,18 +1089,8 @@ function toggleSidebar() {
 .token-banner a { color: var(--blue); font-weight: 700; text-decoration: none; margin-left: auto; }
 .token-banner a:hover { text-decoration: underline; }
 
-.token-form { display: flex; gap: 10px; margin: 16px 0; }
-.token-input {
-  flex: 1; height: 42px; padding: 0 14px; border: 1px solid var(--border);
-  border-radius: 12px; font-family: monospace; font-size: 13px; background: var(--bg); color: var(--text); outline: none;
-}
-.token-input:focus { border-color: var(--blue); }
-
-.card-subtitle { font-size: 13px; color: var(--text2); margin: 4px 0 0; }
-
 @media (max-width: 768px) {
   .market-ticker { display: none; }
-  .token-form { flex-direction: column; }
 }
 
 .token-status-card {
